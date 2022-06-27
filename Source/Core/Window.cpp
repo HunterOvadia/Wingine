@@ -1,7 +1,17 @@
 #include "Core/Window.h"
+#include "Core/Logger.h"
 
 static LRESULT CALLBACK ProcessMessages(HWND Handle, uint32 Message, WPARAM WParam, LPARAM LParam)
 {
+	switch(Message)
+	{
+		case WM_DESTROY:
+		{
+			PostQuitMessage(0);
+		}
+		break;
+	}
+	
 	return DefWindowProcA(Handle, Message, WParam, LParam);
 }
 
@@ -10,6 +20,11 @@ Window::Window(const WindowArgs& InArgs)
 	, Handle(nullptr)
 {
 	Instance = GetModuleHandleA(nullptr);
+}
+
+Window::~Window()
+{
+	Shutdown();
 }
 
 bool Window::Initialize()
@@ -29,24 +44,26 @@ bool Window::Initialize()
 
 	if (!RegisterClassA(&WindowClass))
 	{
-		// TODO(HO): Logging
+		WIN_LOG(Fatal, "Failed to Register Window Class!");
 		return false;
 	}
 
 	Vector2<uint32> WindowPosition, WindowSize;
 	ComputeWindowTransform(Args.InitialPosition, Args.InitialSize, WindowPosition, WindowSize);
 
-	Handle = CreateWindowExA(Args.WindowExStyle, WindowClass.lpszClassName, *Args.WindowTitle, Args.WindowStyle, WindowPosition.X, WindowPosition.Y, WindowSize.X, WindowSize.Y, nullptr, nullptr, Instance, nullptr);
+	Handle = CreateWindowExA(Args.WindowExStyle, WindowClass.lpszClassName, Args.WindowTitle, Args.WindowStyle, WindowPosition.X, WindowPosition.Y, WindowSize.X, WindowSize.Y, nullptr, nullptr, Instance, nullptr);
 	if (!Handle)
 	{
-		// TODO(HO): Logging
+		WIN_LOG(Fatal, "Failed to Create Window!");
 		return false;
 	}
 
-	constexpr bool ShouldActivate = true;
-	constexpr int32 ShowWindowCommandFlags = ShouldActivate ? SW_SHOW : SW_SHOWNOACTIVATE;
-	ShowWindow(Handle, ShowWindowCommandFlags);
 	return true;
+}
+
+void Window::Show() const
+{
+	ShowWindow(Handle, SW_SHOW);
 }
 
 void Window::Shutdown()

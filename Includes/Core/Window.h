@@ -1,12 +1,11 @@
 #pragma once
 #include "Wingine.h"
 #include "Containers/Vector2.h"
-#include "Containers/String.h"
 
 struct WindowArgs
 {
 public:
-	String WindowTitle;
+	const char* WindowTitle;
 	Vector2<uint32> InitialPosition;
 	Vector2<uint32> InitialSize;
 	uint32 WindowStyle = (WS_OVERLAPPED | WS_SYSMENU | WS_CAPTION | WS_MAXIMIZE | WS_MINIMIZEBOX | WS_THICKFRAME);
@@ -18,9 +17,10 @@ class Window
 public:
 	Window() = delete;
 	explicit Window(const WindowArgs& InArgs);
-
+	virtual ~Window();
 public:
 	bool Initialize();
+	void Show() const;
 	void Shutdown();
 
 private:
