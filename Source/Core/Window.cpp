@@ -22,11 +22,6 @@ Window::Window(const WindowArgs& InArgs)
 	Instance = GetModuleHandleA(nullptr);
 }
 
-Window::~Window()
-{
-	Shutdown();
-}
-
 bool Window::Initialize()
 {
 	const WNDCLASSA WindowClass =

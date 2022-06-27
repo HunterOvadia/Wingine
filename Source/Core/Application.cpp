@@ -8,12 +8,6 @@ Application::Application()
 {
 }
 
-Application::~Application()
-{
-   
-}
-
-
 Window* Application::MakeWindow(const WindowArgs& InArgs)
 {
     Window* NewWindow = new Window(InArgs);
@@ -23,16 +17,15 @@ Window* Application::MakeWindow(const WindowArgs& InArgs)
         {
             return NewWindow;
         }
-
-        WIN_LOG(Fatal, "Failed to Initialize Window!");
-    }
-
-    if(NewWindow)
-    {
-        delete NewWindow;
-        NewWindow = nullptr;
+        else
+        {
+            NewWindow->Shutdown();
+            delete NewWindow;
+            NewWindow = nullptr;
+        }
     }
     
+    WIN_LOG(Fatal, "Application::MakeWindow - Failed to Initialize NewWindow!");
     return nullptr;
 }
 
@@ -53,6 +46,7 @@ void Application::Shutdown()
 {
     if(MainWindow)
     {
+        MainWindow->Shutdown();
         delete MainWindow;
         MainWindow = nullptr;
     }
@@ -72,27 +66,37 @@ void Application::Stop()
 
 void Application::Run()
 {
-    Start();
     while(IsRunning)
     {
-        PumpMessages();
-        // Update
-        // Render
+        if(PumpMessages())
+        {
+            Update();
+            Render();
+        }
     }
 }
 
-void Application::PumpMessages()
+bool Application::PumpMessages()
 {
     MSG Message;
     while(PeekMessageA(&Message, nullptr, 0, 0, PM_REMOVE))
     {
         TranslateMessage(&Message);
         DispatchMessage(&Message);
-        
         if(Message.message == WM_QUIT)
         {
-            IsRunning = false;
+            Stop();
             break;
         }
     }
+
+    return IsRunning;
+}
+
+void Application::Update()
+{
+}
+
+void Application::Render()
+{
 }

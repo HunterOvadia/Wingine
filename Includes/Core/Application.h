@@ -5,7 +5,6 @@ class Application
 {
 public:
     Application();
-    ~Application();
 
 public:
     bool Initialize(const WindowArgs& InArgs);
@@ -17,7 +16,10 @@ public:
 
 private:
     static Window* MakeWindow(const WindowArgs& InArgs);
-    void PumpMessages();
+    
+    bool PumpMessages();
+    void Update();
+    void Render();
     
 private:
     bool IsRunning;

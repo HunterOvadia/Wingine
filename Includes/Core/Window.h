@@ -17,7 +17,7 @@ class Window
 public:
 	Window() = delete;
 	explicit Window(const WindowArgs& InArgs);
-	virtual ~Window();
+	
 public:
 	bool Initialize();
 	void Show() const;
