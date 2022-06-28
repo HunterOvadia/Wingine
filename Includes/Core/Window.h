@@ -1,33 +1,36 @@
 #pragma once
 #include "Wingine.h"
-#include "Containers/Vector2.h"
+#include "Containers/Vector.h"
 
-struct WindowArgs
+struct WindowSettings
 {
 public:
-	const char* WindowTitle;
-	Vector2<uint32> InitialPosition;
-	Vector2<uint32> InitialSize;
-	uint32 WindowStyle = (WS_OVERLAPPED | WS_SYSMENU | WS_CAPTION | WS_MAXIMIZE | WS_MINIMIZEBOX | WS_THICKFRAME);
-	uint32 WindowExStyle = (WS_EX_APPWINDOW);
+	const char* Title;
+	Vector2<uint16> Position;
+	Vector2<uint16> Size;
 };
 
 class Window
 {
 public:
-	Window() = delete;
-	explicit Window(const WindowArgs& InArgs);
+	Window();
 	
 public:
-	bool Initialize();
+	bool Initialize(const WindowSettings& InitialSettings);
 	void Show() const;
 	void Shutdown();
-
-private:
-	void ComputeWindowTransform(const Vector2<uint32>& InPosition, const Vector2<uint32>& InSize, Vector2<uint32>& OutPosition, Vector2<uint32>& OutSize) const;
+	
+	WindowSettings& GetSettings() { return Settings; }
+	HWND& GetHandle() { return Handle; }
 	
 private:
-	WindowArgs Args;
+	void ComputeWindowTransform(const Vector2<uint16>& InPosition, const Vector2<uint16>& InSize, Vector2<uint16>& OutPosition, Vector2<uint16>& OutSize) const;
+	
+private:
+	WindowSettings Settings;
 	HINSTANCE Instance;
 	HWND Handle;
+
+	inline static uint32 WindowStyle = (WS_OVERLAPPED | WS_SYSMENU | WS_CAPTION | WS_MAXIMIZE | WS_MINIMIZEBOX | WS_THICKFRAME);
+	inline static uint32 WindowExStyle = (WS_EX_APPWINDOW);
 };

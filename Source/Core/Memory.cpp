@@ -13,6 +13,7 @@ void* Memory::Allocate(const uint64 InSize)
     }
     else
     {
+        WIN_LOG(Error, "Failed to Allocate Memory");
         return nullptr;
     }
 
@@ -51,12 +52,12 @@ void Memory::Free(void* Pointer)
     Node = nullptr;
 }
 
-void Memory::Set(void* Dest, int Value, uint64 Size)
+void Memory::Set(void* Dest, const int Value, const uint64 Size)
 {
     memset(Dest, Value, Size);
 }
 
-void Memory::Zero(void* Dest, uint64 Size)
+void Memory::Zero(void* Dest, const uint64 Size)
 {
     Set(Dest, 0, Size);
 }

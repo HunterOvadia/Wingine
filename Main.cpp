@@ -17,14 +17,14 @@ void operator delete(void* Pointer)
 int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR CmdLine, int CmdShow)
 {
     Application App;
-    const WindowArgs Args =
+    const WindowSettings WindowSettings =
     {
-        .WindowTitle = "WindowTitle",
-        .InitialPosition = Vector2<uint32>(100, 100),
-        .InitialSize = Vector2<uint32>(1280, 720),
+        .Title = "Wingine",
+        .Position = Vector2<uint16>(100, 100),
+        .Size = Vector2<uint16>(1280, 720),
     };
 
-    if(App.Initialize(Args))
+    if(App.Initialize(WindowSettings))
     {
         App.Start();
         App.Run();

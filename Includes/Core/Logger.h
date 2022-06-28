@@ -24,5 +24,4 @@ private:
     static void WriteToConsole(const char* Message, LogLevel Level);
 };
 
-static Logger GLogger;
-#define WIN_LOG(level, message, ...) GLogger.Log(LogLevel::level, message, ##__VA_ARGS__)
+#define WIN_LOG(level, message, ...) Logger::Log(LogLevel::level, message, ##__VA_ARGS__)

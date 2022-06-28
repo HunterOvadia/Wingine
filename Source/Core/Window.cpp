@@ -10,19 +10,26 @@ static LRESULT CALLBACK ProcessMessages(HWND Handle, uint32 Message, WPARAM WPar
 			PostQuitMessage(0);
 		}
 		break;
+
+		case WM_KEYDOWN:
+		case WM_KEYUP:
+		case WM_SYSKEYDOWN:
+		case WM_SYSKEYUP:
+		{
+		}
+		break;
 	}
 	
 	return DefWindowProcA(Handle, Message, WParam, LParam);
 }
 
-Window::Window(const WindowArgs& InArgs)
-	: Args(InArgs)
-	, Handle(nullptr)
+Window::Window()
+	: Handle(nullptr)
 {
 	Instance = GetModuleHandleA(nullptr);
 }
 
-bool Window::Initialize()
+bool Window::Initialize(const WindowSettings& InitialSettings)
 {
 	const WNDCLASSA WindowClass =
 	{
@@ -33,7 +40,7 @@ bool Window::Initialize()
 		.hInstance = Instance, 
 		.hIcon = LoadIcon(Instance, IDI_APPLICATION),
 		.hCursor = LoadCursor(nullptr, IDC_ARROW),
-		.hbrBackground = nullptr,
+		.hbrBackground = NULL,
 		.lpszClassName = "wingine_window_class"
 	};
 
@@ -43,16 +50,18 @@ bool Window::Initialize()
 		return false;
 	}
 
-	Vector2<uint32> WindowPosition, WindowSize;
-	ComputeWindowTransform(Args.InitialPosition, Args.InitialSize, WindowPosition, WindowSize);
-
-	Handle = CreateWindowExA(Args.WindowExStyle, WindowClass.lpszClassName, Args.WindowTitle, Args.WindowStyle, WindowPosition.X, WindowPosition.Y, WindowSize.X, WindowSize.Y, nullptr, nullptr, Instance, nullptr);
+	Vector2<uint16> WindowPosition, WindowSize;
+	ComputeWindowTransform(InitialSettings.Position, InitialSettings.Size, WindowPosition, WindowSize);
+	Handle = CreateWindowExA(WindowExStyle, WindowClass.lpszClassName, InitialSettings.Title, WindowStyle, WindowPosition.X, WindowPosition.Y, WindowSize.X, WindowSize.Y, nullptr, nullptr, Instance, nullptr);
 	if (!Handle)
 	{
 		WIN_LOG(Fatal, "Failed to Create Window!");
 		return false;
 	}
 
+	Settings.Title = InitialSettings.Title;
+	Settings.Position = WindowPosition;
+	Settings.Size = WindowSize;
 	return true;
 }
 
@@ -70,16 +79,16 @@ void Window::Shutdown()
 	}
 }
 
-void Window::ComputeWindowTransform(const Vector2<uint32>& InPosition, const Vector2<uint32>& InSize, Vector2<uint32>& OutPosition, Vector2<uint32>& OutSize) const
+void Window::ComputeWindowTransform(const Vector2<uint16>& InPosition, const Vector2<uint16>& InSize, Vector2<uint16>& OutPosition, Vector2<uint16>& OutSize) const
 {
 	OutPosition = InPosition;
 	OutSize = InSize;
 
 	RECT BorderRect = { 0, 0, 0, 0 };
-	AdjustWindowRectEx(&BorderRect, Args.WindowStyle, 0, Args.WindowExStyle);
+	AdjustWindowRectEx(&BorderRect, WindowStyle, 0, WindowExStyle);
 
-	OutPosition.X += BorderRect.left;
-	OutPosition.Y += BorderRect.top;
-	OutSize.X += (BorderRect.right - BorderRect.left);
-	OutSize.Y += (BorderRect.bottom - BorderRect.top);
+	OutPosition.X += (uint16)BorderRect.left;
+	OutPosition.Y += (uint16)BorderRect.top;
+	OutSize.X += (uint16)(BorderRect.right - BorderRect.left);
+	OutSize.Y += (uint16)(BorderRect.bottom - BorderRect.top);
 }

@@ -1,49 +1,67 @@
 ﻿#pragma once
 #include "Core/Application.h"
 #include "Core/Logger.h"
+#include "Renderer/DX11Renderer.h"
+
 
 Application::Application()
     : IsRunning(false)
     , MainWindow(nullptr)
+    , Renderer(nullptr)
 {
 }
 
-Window* Application::MakeWindow(const WindowArgs& InArgs)
+Window* Application::MakeWindow(const WindowSettings& InitialSettings)
 {
-    Window* NewWindow = new Window(InArgs);
+    Window* NewWindow = new Window();
     if(NewWindow)
     {
-        if(NewWindow->Initialize())
+        if(NewWindow->Initialize(InitialSettings))
         {
             return NewWindow;
         }
-        else
-        {
-            NewWindow->Shutdown();
-            delete NewWindow;
-            NewWindow = nullptr;
-        }
+
+        NewWindow->Shutdown();
+        delete NewWindow;
+        NewWindow = nullptr;
     }
     
     WIN_LOG(Fatal, "Application::MakeWindow - Failed to Initialize NewWindow!");
     return nullptr;
 }
 
-bool Application::Initialize(const WindowArgs& InArgs)
+bool Application::Initialize(const WindowSettings& InitialSettings)
 {
-    MainWindow = MakeWindow(InArgs);
-    if(MainWindow)
+    MainWindow = MakeWindow(InitialSettings);
+    if(!MainWindow)
     {
-        MainWindow->Show();
-        WIN_LOG(Info, "App Initialized!");
-        return true;
+        return false;
+    }
+    
+    Renderer = new DX11Renderer();
+    if(!Renderer)
+    {
+        return false;
     }
 
+    if(Renderer->Initialize(MainWindow))
+    {
+        MainWindow->Show();
+        return true;
+    }
+    
     return false;
 }
 
 void Application::Shutdown()
 {
+    if(Renderer)
+    {
+        Renderer->Shutdown();
+        delete Renderer;
+        Renderer = nullptr;
+    }
+    
     if(MainWindow)
     {
         MainWindow->Shutdown();
@@ -70,8 +88,8 @@ void Application::Run()
     {
         if(PumpMessages())
         {
-            Update();
-            Render();
+            UpdateFrame();
+            RenderFrame();
         }
     }
 }
@@ -93,10 +111,11 @@ bool Application::PumpMessages()
     return IsRunning;
 }
 
-void Application::Update()
+void Application::UpdateFrame()
 {
 }
 
-void Application::Render()
+void Application::RenderFrame()
 {
+    Renderer->Render();
 }
