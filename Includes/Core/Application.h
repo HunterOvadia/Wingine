@@ -27,5 +27,3 @@ private:
     Window* MainWindow;
     DX11Renderer* Renderer;
 };
-
-extern bool SetupScene();
