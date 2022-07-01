@@ -28,7 +28,8 @@ private:
     ID3D11DeviceContext* DeviceContext;
     ID3D11RenderTargetView* RenderTargetView;
     
-    ID3D11Buffer* TriangleVertBuffer;
+    ID3D11Buffer* SquareIndexBuffer;
+    ID3D11Buffer* SquareVertexBuffer;
     ID3D11InputLayout* VertexInputLayout;
 
     Shader* PixelShader;

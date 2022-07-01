@@ -63,7 +63,8 @@ bool DX11Renderer::Initialize(Window* MainWindow)
 void DX11Renderer::Shutdown()
 {
     DX_SAFE_RELEASE(VertexInputLayout);
-    DX_SAFE_RELEASE(TriangleVertBuffer);
+    DX_SAFE_RELEASE(SquareIndexBuffer);
+    DX_SAFE_RELEASE(SquareVertexBuffer);
 
     delete PixelShader;
     delete VertexShader;
@@ -85,7 +86,7 @@ void DX11Renderer::Render()
     PreRender();
 
     // Rendering
-    DeviceContext->Draw(3, 0);
+    DeviceContext->DrawIndexed(6, 0, 0);
 
     PostRender();
 }
@@ -112,14 +113,15 @@ bool DX11Renderer::SetupScene()
 
     Vertex VertexBuffer[] =
     {
-        Vertex(Vector3(0.0f, 0.5f, 0.5f), Vector4(1.0f, 0.0f, 0.0f, 1.0f)),
+        Vertex(Vector3(-0.5f, -0.5f, 0.5f), Vector4(1.0f, 0.0f, 0.0f, 1.0f)),
+        Vertex(Vector3(-0.5f, 0.5f, 0.5f), Vector4(0.0f, 1.0f, 0.0f, 1.0f)),
+        Vertex(Vector3(0.5f, 0.5f, 0.5f), Vector4(0.0f, 0.0f, 1.0f, 1.0f)),
         Vertex(Vector3(0.5f, -0.5f, 0.5f), Vector4(0.0f, 1.0f, 0.0f, 1.0f)),
-        Vertex(Vector3(-0.5f, -0.5f, 0.5f), Vector4(0.0f, 0.0f, 1.0f, 1.0f)),
     };
 
     const D3D11_BUFFER_DESC VertexBufferDesc =
-    {
-        .ByteWidth = sizeof(Vertex) * 3,
+{
+        .ByteWidth = sizeof(Vertex) * 4,
         .Usage = D3D11_USAGE_DEFAULT,
         .BindFlags = D3D11_BIND_VERTEX_BUFFER,
         .CPUAccessFlags = 0,
@@ -131,11 +133,34 @@ bool DX11Renderer::SetupScene()
         .pSysMem = VertexBuffer,
     };
     
-    HR_CHECK(Device->CreateBuffer(&VertexBufferDesc, &VertexBufferData, &TriangleVertBuffer));
+    HR_CHECK(Device->CreateBuffer(&VertexBufferDesc, &VertexBufferData, &SquareVertexBuffer));
+
+    DWORD Indices[] = {
+        0, 1, 2,
+        0, 2, 3
+    };
+
+    const D3D11_BUFFER_DESC IndexBufferDesc =
+    {
+        .ByteWidth = sizeof(DWORD) * 2 * 3,
+        .Usage = D3D11_USAGE_DEFAULT,
+        .BindFlags = D3D11_BIND_INDEX_BUFFER,
+        .CPUAccessFlags = 0,
+        .MiscFlags = 0,
+    };
+    
+    const D3D11_SUBRESOURCE_DATA IndexBufferData
+    {
+        .pSysMem = Indices,
+    };
+
+    HR_CHECK(Device->CreateBuffer(&IndexBufferDesc, &IndexBufferData, &SquareIndexBuffer));
+
 
     constexpr UINT Stride = sizeof(Vertex);
     constexpr UINT Offset = 0;
-    DeviceContext->IASetVertexBuffers(0, 1, &TriangleVertBuffer, &Stride, &Offset);
+    DeviceContext->IASetVertexBuffers(0, 1, &SquareVertexBuffer, &Stride, &Offset);
+    DeviceContext->IASetIndexBuffer(SquareIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 
     HR_CHECK(Device->CreateInputLayout(Vertex::Layout, Vertex::LayoutCount, VertexShaderResult.Content, VertexShaderResult.ContentSize, &VertexInputLayout));
     DeviceContext->IASetInputLayout(VertexInputLayout);
