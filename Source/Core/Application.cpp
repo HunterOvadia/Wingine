@@ -113,9 +113,10 @@ bool Application::PumpMessages()
 
 void Application::UpdateFrame()
 {
+    Renderer->UpdateScene();
 }
 
 void Application::RenderFrame()
 {
-    Renderer->Render();
+    Renderer->RenderScene();
 }

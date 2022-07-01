@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <d3d11.h>
 #include <dxgi.h>
+#include <DirectXMath.h>
 
 #include "Core/Application.h"
 
@@ -9,10 +10,27 @@
 
 class Shader;
 
-struct RendererInternals
+
+struct CameraData
 {
-    
+    DirectX::XMMATRIX View;
+    DirectX::XMMATRIX Projection;
+    DirectX::XMVECTOR Position;
+    DirectX::XMVECTOR Target;
+    DirectX::XMVECTOR Up;
+
+    void Initialize(const uint32 Width, const uint32 Height);
 };
+
+struct ConstantBufferPerObjectData
+{
+    DirectX::XMMATRIX WVP;
+    void UpdateData(const DirectX::XMMATRIX& InWorld, const CameraData& InCamera)
+    {
+        WVP = XMMatrixTranspose(InWorld * InCamera.View * InCamera.Projection);
+    }
+};
+
 
 class DX11Renderer
 {
@@ -20,7 +38,8 @@ public:
     DX11Renderer();
     bool Initialize(Window* MainWindow);
     void Shutdown();
-    void Render() const;
+    void RenderScene();
+    void UpdateScene();
     bool SetupScene();
     void SetShader(const Shader* InShader) const;
 
@@ -28,16 +47,25 @@ private:
     void CreateDeviceAndSwapChain(Window* MainWindow);
     void CreateRenderTargetView();
     void CreateDepthStencilView();
-
-private:
-    bool InitializeShaders();
-    void SetShaders(Shader* InVertexShader, Shader* InPixelShader) const;
-
     void CreateBuffer(const void* InBufferMemory, const D3D11_BUFFER_DESC* InBufferDesc, ID3D11Buffer** InBuffer) const;
+    void CreateViewport(float Width, float Height) const;
+    
+    void CreateWireframeRasterizerState();
+
+    void CreateIndexBuffer();
+    void CreateVertexBuffer();
+    void CreateConstantBuffer();
+    void CreateInputLayout();
+    void ClearViews();
+
+    void SetConstantBufferData(const DirectX::XMMATRIX& InWVP);
     
 private:
-    void PreRender() const;
-    void PostRender() const;
+    bool InitializeShaders();
+    
+private:
+    void PreRender();
+    void PostRender();
     
 private:
     IDXGISwapChain* SwapChain;
@@ -46,6 +74,8 @@ private:
     ID3D11RenderTargetView* RenderTargetView;
     ID3D11DepthStencilView* DepthStencilView;
     ID3D11Texture2D* DepthStencilBuffer;
+    ID3D11Buffer* ConstantBuffer;
+    ID3D11RasterizerState* WireFrameRasterizerState;
 
     ID3D11Buffer* SquareIndexBuffer;
     ID3D11Buffer* SquareVertexBuffer;
@@ -56,4 +86,14 @@ private:
     
     uint32 Width;
     uint32 Height;
+    
+    // TOOD(HO): Not the right place for this
+    CameraData Camera;
+    ConstantBufferPerObjectData ConstantBufferData;
+
+    DirectX::XMMATRIX Cube1World;
+    DirectX::XMMATRIX Cube2World;
+    float Rot = 0.01f;
 };
+
+
