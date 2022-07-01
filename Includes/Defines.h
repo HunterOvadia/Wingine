@@ -28,3 +28,5 @@ typedef float               float32;
 typedef double              float64;
 STATIC_ASSERT(sizeof(float32) == 4, "Expected f32 to be 4 bytes.");
 STATIC_ASSERT(sizeof(float64) == 8, "Expected f64 to be 8 bytes.");
+
+#define STATIC_ARRAY_SIZE(InArray) (sizeof((InArray))/sizeof((InArray)[0]))

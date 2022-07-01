@@ -5,6 +5,8 @@
 Shader::Shader(ID3D11Device* Device, const ShaderType InType, const void* Contents, const uint64 Size)
 {
     Type = InType;
+    ShaderContents = Contents;
+    ShaderSize = Size;
     
     if(Device)
     {

@@ -17,9 +17,14 @@ public:
 
     ShaderType GetType() const { return Type; }
     ID3D11DeviceChild* GetShader() const;
-
+    const void* GetContents() const { return ShaderContents; }
+    uint64 GetSize() const { return ShaderSize; }
+    
 private:
     ShaderType Type;
     ID3D11VertexShader* VertexShader;
     ID3D11PixelShader* PixelShader;
+
+    const void* ShaderContents;
+    uint64 ShaderSize;
 };

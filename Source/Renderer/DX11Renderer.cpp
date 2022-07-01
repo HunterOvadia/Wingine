@@ -10,10 +10,152 @@ DX11Renderer::DX11Renderer()
     , Device(nullptr)
     , DeviceContext(nullptr)
     , RenderTargetView(nullptr)
+    , DepthStencilView(nullptr)
+    , DepthStencilBuffer(nullptr)
+    , SquareIndexBuffer(nullptr)
+    , SquareVertexBuffer(nullptr)
+    , VertexInputLayout(nullptr)
+    , PixelShader(nullptr)
+    , VertexShader(nullptr)
+    , Width(0)
+    , Height(0)
 {
 }
 
 bool DX11Renderer::Initialize(Window* MainWindow)
+{
+    CreateDeviceAndSwapChain(MainWindow);
+    CreateRenderTargetView();
+    CreateDepthStencilView();
+    
+    DeviceContext->OMSetRenderTargets(1, &RenderTargetView, DepthStencilView);
+    return SetupScene();
+}
+
+void DX11Renderer::Shutdown()
+{
+    DX_SAFE_RELEASE(VertexInputLayout);
+    DX_SAFE_RELEASE(SquareIndexBuffer);
+    DX_SAFE_RELEASE(SquareVertexBuffer);
+
+    delete PixelShader;
+    delete VertexShader;
+
+    DX_SAFE_RELEASE(DepthStencilView);
+    DX_SAFE_RELEASE(DepthStencilBuffer);
+    DX_SAFE_RELEASE(RenderTargetView);
+    DX_SAFE_RELEASE(SwapChain);
+    DX_SAFE_RELEASE(Device);
+    DX_SAFE_RELEASE(DeviceContext);
+}
+
+void DX11Renderer::PreRender() const
+{
+    constexpr FLOAT Colors[4] = { 0.5f, 0.3f, 0.3f, 1.0f };
+    DeviceContext->ClearRenderTargetView(RenderTargetView, Colors);
+    DeviceContext->ClearDepthStencilView(DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+}
+
+void DX11Renderer::Render() const
+{
+    PreRender();
+
+    // Rendering
+    DeviceContext->DrawIndexed(6, 0, 0);
+
+    PostRender();
+}
+
+bool DX11Renderer::SetupScene()
+{
+    if(!InitializeShaders())
+    {
+        return false;
+    }
+
+    SetShaders(VertexShader, PixelShader);
+
+    const Vertex VertexBuffer[] =
+    {
+        Vertex(Vector3(-0.5f, -0.5f, 0.5f), Vector4(1.0f, 0.0f, 0.0f, 1.0f)),
+        Vertex(Vector3(-0.5f, 0.5f, 0.5f), Vector4(0.0f, 1.0f, 0.0f, 1.0f)),
+        Vertex(Vector3(0.5f, 0.5f, 0.5f), Vector4(0.0f, 0.0f, 1.0f, 1.0f)),
+        Vertex(Vector3(0.5f, -0.5f, 0.5f), Vector4(0.0f, 1.0f, 0.0f, 1.0f)),
+    };
+
+    const D3D11_BUFFER_DESC VertexBufferDesc =
+    {
+        .ByteWidth = sizeof(Vertex) * STATIC_ARRAY_SIZE(VertexBuffer),
+        .Usage = D3D11_USAGE_DEFAULT,
+        .BindFlags = D3D11_BIND_VERTEX_BUFFER,
+        .CPUAccessFlags = 0,
+        .MiscFlags = 0
+    };
+    CreateBuffer(&VertexBuffer, &VertexBufferDesc, &SquareVertexBuffer);
+
+    const DWORD Indices[] =
+    {
+        0, 1, 2,
+        0, 2, 3
+    };
+
+    const D3D11_BUFFER_DESC IndexBufferDesc =
+    {
+        .ByteWidth = sizeof(DWORD) * STATIC_ARRAY_SIZE(Indices) * 3,
+        .Usage = D3D11_USAGE_DEFAULT,
+        .BindFlags = D3D11_BIND_INDEX_BUFFER,
+        .CPUAccessFlags = 0,
+        .MiscFlags = 0,
+    };
+    CreateBuffer(&Indices, &IndexBufferDesc, &SquareIndexBuffer);
+
+
+    constexpr UINT Stride = sizeof(Vertex);
+    constexpr UINT Offset = 0;
+    DeviceContext->IASetVertexBuffers(0, 1, &SquareVertexBuffer, &Stride, &Offset);
+    DeviceContext->IASetIndexBuffer(SquareIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+
+    HR_CHECK(Device->CreateInputLayout(Vertex::Layout, Vertex::LayoutCount, VertexShader->GetContents(), VertexShader->GetSize(), &VertexInputLayout));
+    DeviceContext->IASetInputLayout(VertexInputLayout);
+    DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    
+    const D3D11_VIEWPORT Viewport =
+    {
+        .TopLeftX = 0,
+        .TopLeftY = 0,
+        .Width = static_cast<float>(Width),
+        .Height = static_cast<float>(Height),
+        .MinDepth = 0.0f,
+        .MaxDepth = 1.0f
+    };
+    
+    DeviceContext->RSSetViewports(1, &Viewport);
+    return true;
+}
+
+void DX11Renderer::SetShader(const Shader* InShader) const
+{
+    if(!InShader)
+    {
+        return;
+    }
+    
+    switch(InShader->GetType())
+    {
+        case ShaderType::Vertex:
+        {
+            DeviceContext->VSSetShader(static_cast<ID3D11VertexShader*>(InShader->GetShader()), nullptr, 0);
+        }
+        break;
+        case ShaderType::Pixel:
+        {
+            DeviceContext->PSSetShader(static_cast<ID3D11PixelShader*>(InShader->GetShader()), nullptr, 0);
+        }
+        break;
+    }
+}
+
+void DX11Renderer::CreateDeviceAndSwapChain(Window* MainWindow)
 {
     const WindowSettings& WindowSettings = MainWindow->GetSettings();
     Width = WindowSettings.Size.X;
@@ -49,14 +191,20 @@ bool DX11Renderer::Initialize(Window* MainWindow)
     };
 
     HR_CHECK(D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, NULL, nullptr, NULL, D3D11_SDK_VERSION, &SwapChainDesc, &SwapChain, &Device, nullptr, &DeviceContext));
-    
+}
+
+void DX11Renderer::CreateRenderTargetView()
+{
     ID3D11Texture2D* BackBuffer;
     HR_CHECK(SwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&BackBuffer));
     HR_CHECK(Device->CreateRenderTargetView(BackBuffer, nullptr, &RenderTargetView));
     DX_SAFE_RELEASE(BackBuffer);
+}
 
+void DX11Renderer::CreateDepthStencilView()
+{
     const D3D11_TEXTURE2D_DESC DepthStencilDesc =
-    {
+   {
         .Width = Width,
         .Height = Height,
         .MipLevels = 1,
@@ -74,47 +222,9 @@ bool DX11Renderer::Initialize(Window* MainWindow)
 
     HR_CHECK(Device->CreateTexture2D(&DepthStencilDesc, nullptr, &DepthStencilBuffer));
     HR_CHECK(Device->CreateDepthStencilView(DepthStencilBuffer, nullptr, &DepthStencilView));
-    
-    DeviceContext->OMSetRenderTargets(1, &RenderTargetView, DepthStencilView);
-
-    return SetupScene();
 }
 
-void DX11Renderer::Shutdown()
-{
-    DX_SAFE_RELEASE(VertexInputLayout);
-    DX_SAFE_RELEASE(SquareIndexBuffer);
-    DX_SAFE_RELEASE(SquareVertexBuffer);
-
-    delete PixelShader;
-    delete VertexShader;
-
-    DX_SAFE_RELEASE(DepthStencilView);
-    DX_SAFE_RELEASE(DepthStencilBuffer);
-    DX_SAFE_RELEASE(RenderTargetView);
-    DX_SAFE_RELEASE(SwapChain);
-    DX_SAFE_RELEASE(Device);
-    DX_SAFE_RELEASE(DeviceContext);
-}
-
-void DX11Renderer::PreRender()
-{
-    constexpr FLOAT Colors[4] = { 0.5f, 0.3f, 0.3f, 1.0f };
-    DeviceContext->ClearRenderTargetView(RenderTargetView, Colors);
-    DeviceContext->ClearDepthStencilView(DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
-}
-
-void DX11Renderer::Render()
-{
-    PreRender();
-
-    // Rendering
-    DeviceContext->DrawIndexed(6, 0, 0);
-
-    PostRender();
-}
-
-bool DX11Renderer::SetupScene()
+bool DX11Renderer::InitializeShaders()
 {
     const ReadFileResult VertexShaderResult = FileIO::ReadFile("VertexShader.cso");
     if(!VertexShaderResult.IsValid())
@@ -131,96 +241,33 @@ bool DX11Renderer::SetupScene()
     // TODO(HO): Shader Management :)
     VertexShader = new Shader(Device, ShaderType::Vertex, VertexShaderResult.Content, VertexShaderResult.ContentSize);
     PixelShader = new Shader(Device, ShaderType::Pixel, PixelShaderResult.Content, PixelShaderResult.ContentSize);
-    SetShader(VertexShader);
-    SetShader(PixelShader);
-
-    Vertex VertexBuffer[] =
-    {
-        Vertex(Vector3(-0.5f, -0.5f, 0.5f), Vector4(1.0f, 0.0f, 0.0f, 1.0f)),
-        Vertex(Vector3(-0.5f, 0.5f, 0.5f), Vector4(0.0f, 1.0f, 0.0f, 1.0f)),
-        Vertex(Vector3(0.5f, 0.5f, 0.5f), Vector4(0.0f, 0.0f, 1.0f, 1.0f)),
-        Vertex(Vector3(0.5f, -0.5f, 0.5f), Vector4(0.0f, 1.0f, 0.0f, 1.0f)),
-    };
-
-    const D3D11_BUFFER_DESC VertexBufferDesc =
-{
-        .ByteWidth = sizeof(Vertex) * 4,
-        .Usage = D3D11_USAGE_DEFAULT,
-        .BindFlags = D3D11_BIND_VERTEX_BUFFER,
-        .CPUAccessFlags = 0,
-        .MiscFlags = 0
-    };
-
-    const D3D11_SUBRESOURCE_DATA VertexBufferData
-    {
-        .pSysMem = VertexBuffer,
-    };
-    
-    HR_CHECK(Device->CreateBuffer(&VertexBufferDesc, &VertexBufferData, &SquareVertexBuffer));
-
-    DWORD Indices[] = {
-        0, 1, 2,
-        0, 2, 3
-    };
-
-    const D3D11_BUFFER_DESC IndexBufferDesc =
-    {
-        .ByteWidth = sizeof(DWORD) * 2 * 3,
-        .Usage = D3D11_USAGE_DEFAULT,
-        .BindFlags = D3D11_BIND_INDEX_BUFFER,
-        .CPUAccessFlags = 0,
-        .MiscFlags = 0,
-    };
-    
-    const D3D11_SUBRESOURCE_DATA IndexBufferData
-    {
-        .pSysMem = Indices,
-    };
-
-    HR_CHECK(Device->CreateBuffer(&IndexBufferDesc, &IndexBufferData, &SquareIndexBuffer));
-
-
-    constexpr UINT Stride = sizeof(Vertex);
-    constexpr UINT Offset = 0;
-    DeviceContext->IASetVertexBuffers(0, 1, &SquareVertexBuffer, &Stride, &Offset);
-    DeviceContext->IASetIndexBuffer(SquareIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-
-    HR_CHECK(Device->CreateInputLayout(Vertex::Layout, Vertex::LayoutCount, VertexShaderResult.Content, VertexShaderResult.ContentSize, &VertexInputLayout));
-    DeviceContext->IASetInputLayout(VertexInputLayout);
-    DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    
-    const D3D11_VIEWPORT Viewport =
-    {
-        .TopLeftX = 0,
-        .TopLeftY = 0,
-        .Width = static_cast<float>(Width),
-        .Height = static_cast<float>(Height),
-        .MinDepth = 0.0f,
-        .MaxDepth = 1.0f
-    };
-    
-    DeviceContext->RSSetViewports(1, &Viewport);
     return true;
 }
 
-void DX11Renderer::SetShader(const Shader* InShader) const
+void DX11Renderer::SetShaders(Shader* InVertexShader, Shader* InPixelShader) const
 {
-    switch(InShader->GetType())
+    if(InVertexShader)
     {
-        case ShaderType::Vertex:
-        {
-            DeviceContext->VSSetShader(static_cast<ID3D11VertexShader*>(InShader->GetShader()), nullptr, 0);
-        }
-        break;
-        case ShaderType::Pixel:
-        {
-            DeviceContext->PSSetShader(static_cast<ID3D11PixelShader*>(InShader->GetShader()), nullptr, 0);
-        }
-        break;
+        SetShader(VertexShader);
+    }
+
+    if(InPixelShader)
+    {
+        SetShader(PixelShader);
     }
 }
 
-void DX11Renderer::PostRender()
+void DX11Renderer::CreateBuffer(const void* InBufferMemory, const D3D11_BUFFER_DESC* InBufferDesc, ID3D11Buffer** InBuffer) const
+{
+    const D3D11_SUBRESOURCE_DATA BufferData
+    {
+        .pSysMem = InBufferMemory,
+    };
+    
+    HR_CHECK(Device->CreateBuffer(InBufferDesc, &BufferData, InBuffer));
+}
+
+void DX11Renderer::PostRender() const
 {
     SwapChain->Present(0, 0);
 }
