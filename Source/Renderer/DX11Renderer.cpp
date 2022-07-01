@@ -55,7 +55,27 @@ bool DX11Renderer::Initialize(Window* MainWindow)
     HR_CHECK(Device->CreateRenderTargetView(BackBuffer, nullptr, &RenderTargetView));
     DX_SAFE_RELEASE(BackBuffer);
 
-    DeviceContext->OMSetRenderTargets(1, &RenderTargetView, nullptr);
+    const D3D11_TEXTURE2D_DESC DepthStencilDesc =
+    {
+        .Width = Width,
+        .Height = Height,
+        .MipLevels = 1,
+        .ArraySize = 1,
+        .Format = DXGI_FORMAT_D24_UNORM_S8_UINT,
+        .SampleDesc = {
+            .Count = 1,
+            .Quality = 0,
+        },
+        .Usage = D3D11_USAGE_DEFAULT,
+        .BindFlags = D3D11_BIND_DEPTH_STENCIL,
+        .CPUAccessFlags = 0,
+        .MiscFlags = 0
+    };
+
+    HR_CHECK(Device->CreateTexture2D(&DepthStencilDesc, nullptr, &DepthStencilBuffer));
+    HR_CHECK(Device->CreateDepthStencilView(DepthStencilBuffer, nullptr, &DepthStencilView));
+    
+    DeviceContext->OMSetRenderTargets(1, &RenderTargetView, DepthStencilView);
 
     return SetupScene();
 }
@@ -69,6 +89,8 @@ void DX11Renderer::Shutdown()
     delete PixelShader;
     delete VertexShader;
 
+    DX_SAFE_RELEASE(DepthStencilView);
+    DX_SAFE_RELEASE(DepthStencilBuffer);
     DX_SAFE_RELEASE(RenderTargetView);
     DX_SAFE_RELEASE(SwapChain);
     DX_SAFE_RELEASE(Device);
@@ -79,6 +101,7 @@ void DX11Renderer::PreRender()
 {
     constexpr FLOAT Colors[4] = { 0.5f, 0.3f, 0.3f, 1.0f };
     DeviceContext->ClearRenderTargetView(RenderTargetView, Colors);
+    DeviceContext->ClearDepthStencilView(DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 }
 
 void DX11Renderer::Render()
@@ -171,7 +194,9 @@ bool DX11Renderer::SetupScene()
         .TopLeftX = 0,
         .TopLeftY = 0,
         .Width = static_cast<float>(Width),
-        .Height = static_cast<float>(Height)
+        .Height = static_cast<float>(Height),
+        .MinDepth = 0.0f,
+        .MaxDepth = 1.0f
     };
     
     DeviceContext->RSSetViewports(1, &Viewport);

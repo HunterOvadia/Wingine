@@ -27,7 +27,9 @@ private:
     ID3D11Device* Device;
     ID3D11DeviceContext* DeviceContext;
     ID3D11RenderTargetView* RenderTargetView;
-    
+    ID3D11DepthStencilView* DepthStencilView;
+    ID3D11Texture2D* DepthStencilBuffer;
+
     ID3D11Buffer* SquareIndexBuffer;
     ID3D11Buffer* SquareVertexBuffer;
     ID3D11InputLayout* VertexInputLayout;
