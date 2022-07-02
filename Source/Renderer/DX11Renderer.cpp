@@ -1,9 +1,8 @@
 ﻿#include "Renderer/DX11Renderer.h"
 #include <d3d11.h>
-
 #include "Core/FileIO.h"
 #include "Core/Logger.h"
-#include "Renderer/ShaderBase.h"
+#include "Renderer/Shader.h"
 
 void CameraData::Initialize(const uint32 Width, const uint32 Height)
 {
@@ -11,7 +10,7 @@ void CameraData::Initialize(const uint32 Width, const uint32 Height)
     Target = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
     Up = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
     View = DirectX::XMMatrixLookAtLH(Position, Target, Up);
-    Projection = DirectX::XMMatrixPerspectiveFovLH(0.4f * 3.14f, (float)Width/Height, 1.0f, 1000.0f);
+    Projection = DirectX::XMMatrixPerspectiveFovLH(0.4f * 3.14f, (float)Width/(float)Height, 1.0f, 1000.0f);
 }
 
 DX11Renderer::DX11Renderer()
@@ -49,9 +48,10 @@ void DX11Renderer::Shutdown()
     DX_SAFE_RELEASE(SquareIndexBuffer);
     DX_SAFE_RELEASE(SquareVertexBuffer);
 
-    delete PixelShader;
-    delete VertexShader;
-
+    SAFE_DELETE(CubeTexture);
+    SAFE_DELETE(PixelShader);
+    SAFE_DELETE(VertexShader);
+    
     DX_SAFE_RELEASE(DepthStencilView);
     DX_SAFE_RELEASE(DepthStencilBuffer);
     DX_SAFE_RELEASE(RenderTargetView);
@@ -70,9 +70,11 @@ void DX11Renderer::RenderScene()
     PreRender();
 
     SetConstantBufferData(Cube1World);
+    SetTexture(CubeTexture->GetResource(), TextureSamplerState);
     DeviceContext->DrawIndexed(36, 0, 0);
 
     SetConstantBufferData(Cube2World);
+    SetTexture(CubeTexture->GetResource(), TextureSamplerState);
     DeviceContext->DrawIndexed(36, 0, 0);
 
     PostRender();
@@ -86,6 +88,11 @@ void DX11Renderer::SetConstantBufferData(const DirectX::XMMATRIX& InWVP)
     DeviceContext->VSSetConstantBuffers(0, 1, &ConstantBuffer);
 }
 
+void DX11Renderer::SetTexture(ID3D11ShaderResourceView* ResourceView, ID3D11SamplerState* SamplerState)
+{
+    DeviceContext->PSSetShaderResources(0, 1, &ResourceView);
+    DeviceContext->PSSetSamplers(0, 1, &SamplerState);
+}
 
 void DX11Renderer::UpdateScene()
 {
@@ -116,7 +123,7 @@ void DX11Renderer::PostRender()
 
 bool DX11Renderer::SetupScene()
 {
-    if(!InitializeShaders())
+    if(!InitializeTextures() || !InitializeShaders())
     {
         return false;
     }
@@ -124,11 +131,12 @@ bool DX11Renderer::SetupScene()
     SetShader(VertexShader);
     SetShader(PixelShader);
     
+    CreateSamplerState();
     CreateVertexBuffer();
     CreateIndexBuffer();
     CreateConstantBuffer();
     CreateInputLayout();
-
+    
     // TODO(HO): States?
     CreateWireframeRasterizerState();
     
@@ -141,7 +149,7 @@ bool DX11Renderer::SetupScene()
     DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     // TODO(HO): States?
-    DeviceContext->RSSetState(WireFrameRasterizerState);
+    //DeviceContext->RSSetState(WireFrameRasterizerState);
     return true;
 }
 
@@ -149,14 +157,35 @@ void DX11Renderer::CreateVertexBuffer()
 {
     const Vertex VertexBuffer[] =
     {
-        Vertex(Vector3(-1.0f, -1.0f, -1.0f), Vector4(1.0f, 0.0f, 0.0f, 1.0f)),
-        Vertex(Vector3(-1.0f, +1.0f, -1.0f), Vector4(0.0f, 1.0f, 0.0f, 1.0f)),
-        Vertex(Vector3(+1.0f, +1.0f, -1.0f), Vector4(0.0f, 0.0f, 1.0f, 1.0f)),
-        Vertex(Vector3(+1.0f, -1.0f, -1.0f), Vector4(1.0f, 1.0f, 0.0f, 1.0f)),
-        Vertex(Vector3(-1.0f, -1.0f, +1.0f), Vector4(0.0f, 1.0f, 1.0f, 1.0f)),
-        Vertex(Vector3(-1.0f, +1.0f, +1.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f)),
-        Vertex(Vector3(+1.0f, +1.0f, +1.0f), Vector4(1.0f, 0.0f, 1.0f, 1.0f)),
-        Vertex(Vector3(+1.0f, -1.0f, +1.0f), Vector4(1.0f, 0.0f, 0.0f, 1.0f)),
+        Vertex(Vector3(-1.0f, -1.0f, -1.0f), Vector2(0.0f, 1.0f)),
+        Vertex(Vector3(-1.0f,  1.0f, -1.0f), Vector2(0.0f, 0.0f)),
+        Vertex(Vector3( 1.0f,  1.0f, -1.0f), Vector2(1.0f, 0.0f)),
+        Vertex(Vector3( 1.0f, -1.0f, -1.0f), Vector2(1.0f, 1.0f)),
+        
+        Vertex(Vector3(-1.0f, -1.0f, 1.0f), Vector2(1.0f, 1.0f)),
+        Vertex(Vector3( 1.0f, -1.0f, 1.0f), Vector2(0.0f, 1.0f)),
+        Vertex(Vector3( 1.0f,  1.0f, 1.0f), Vector2(0.0f, 0.0f)),
+        Vertex(Vector3(-1.0f,  1.0f, 1.0f), Vector2(1.0f, 0.0f)),
+
+        Vertex(Vector3(-1.0f, 1.0f, -1.0f), Vector2(0.0f, 1.0f)),
+        Vertex(Vector3(-1.0f, 1.0f,  1.0f), Vector2(0.0f, 0.0f)),
+        Vertex(Vector3( 1.0f, 1.0f,  1.0f), Vector2(1.0f, 0.0f)),
+        Vertex(Vector3( 1.0f, 1.0f, -1.0f), Vector2(1.0f, 1.0f)),
+
+        Vertex(Vector3(-1.0f, -1.0f, -1.0f), Vector2(1.0f, 1.0f)),
+        Vertex(Vector3( 1.0f, -1.0f, -1.0f), Vector2(0.0f, 1.0f)),
+        Vertex(Vector3( 1.0f, -1.0f,  1.0f), Vector2(0.0f, 0.0f)),
+        Vertex(Vector3(-1.0f, -1.0f,  1.0f), Vector2(1.0f, 0.0f)),
+
+        Vertex(Vector3(-1.0f, -1.0f,  1.0f), Vector2(0.0f, 1.0f)),
+        Vertex(Vector3(-1.0f,  1.0f,  1.0f), Vector2(0.0f, 0.0f)),
+        Vertex(Vector3(-1.0f,  1.0f, -1.0f), Vector2(1.0f, 0.0f)),
+        Vertex(Vector3(-1.0f, -1.0f, -1.0f), Vector2(1.0f, 1.0f)),
+
+        Vertex(Vector3( 1.0f, -1.0f, -1.0f), Vector2(0.0f, 1.0f)),
+        Vertex(Vector3( 1.0f,  1.0f, -1.0f), Vector2(0.0f, 0.0f)),
+        Vertex(Vector3( 1.0f,  1.0f,  1.0f), Vector2(1.0f, 0.0f)),
+        Vertex(Vector3( 1.0f, -1.0f,  1.0f), Vector2(1.0f, 1.0f)),
     };
 
     const D3D11_BUFFER_DESC VertexBufferDesc =
@@ -178,29 +207,29 @@ void DX11Renderer::CreateIndexBuffer()
 {
     const DWORD Indices[] =
 {
-        // front face
-        0, 1, 2,
-        0, 2, 3,
-
-        // back face
-        4, 6, 5,
-        4, 7, 6,
-
-        // left face
-        4, 5, 1,
-        4, 1, 0,
-
-        // right face
-        3, 2, 6,
-        3, 6, 7,
-
-        // top face
-        1, 5, 6,
-        1, 6, 2,
-
-        // bottom face
-        4, 0, 3, 
-        4, 3, 7
+        // Front Face
+        0,  1,  2,
+        0,  2,  3,
+    
+        // Back Face
+        4,  5,  6,
+        4,  6,  7,
+    
+        // Top Face
+        8,  9, 10,
+        8, 10, 11,
+    
+        // Bottom Face
+        12, 13, 14,
+        12, 14, 15,
+    
+        // Left Face
+        16, 17, 18,
+        16, 18, 19,
+    
+        // Right Face
+        20, 21, 22,
+        20, 22, 23
     };
 
     const D3D11_BUFFER_DESC IndexBufferDesc =
@@ -299,7 +328,7 @@ void DX11Renderer::CreateDeviceAndSwapChain(Window* MainWindow)
 void DX11Renderer::CreateRenderTargetView()
 {
     ID3D11Texture2D* BackBuffer;
-    HR_CHECK(SwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&BackBuffer));
+    HR_CHECK(SwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&BackBuffer)));
     HR_CHECK(Device->CreateRenderTargetView(BackBuffer, nullptr, &RenderTargetView));
     DX_SAFE_RELEASE(BackBuffer);
 }
@@ -307,7 +336,7 @@ void DX11Renderer::CreateRenderTargetView()
 void DX11Renderer::CreateDepthStencilView()
 {
     const D3D11_TEXTURE2D_DESC DepthStencilDesc =
-   {
+    {
         .Width = Width,
         .Height = Height,
         .MipLevels = 1,
@@ -329,23 +358,35 @@ void DX11Renderer::CreateDepthStencilView()
 
 bool DX11Renderer::InitializeShaders()
 {
-    const ReadFileResult VertexShaderResult = FileIO::ReadFile("VertexShader.cso");
-    if(!VertexShaderResult.IsValid())
-    {
-        return false;
-    }
-
-    const ReadFileResult PixelShaderResult = FileIO::ReadFile("PixelShader.cso");
-    if(!VertexShaderResult.IsValid())
-    {
-        return false;
-    }
-
-    // TODO(HO): Shader Management :)
-    VertexShader = new Shader(Device, ShaderType::Vertex, VertexShaderResult.Content, VertexShaderResult.ContentSize);
-    PixelShader = new Shader(Device, ShaderType::Pixel, PixelShaderResult.Content, PixelShaderResult.ContentSize);
+    // TODO(HO): Shader Management/Factory with Device
+    VertexShader = new Shader(Device, ShaderType::Vertex, "VertexShader.cso");
+    PixelShader = new Shader(Device, ShaderType::Pixel, "PixelShader.cso");
     return true;
 }
+
+bool DX11Renderer::InitializeTextures()
+{
+    // TODO(HO): Texture Management/Factory with Device
+    CubeTexture = new Texture("TestTexture.png", Device);
+    return true;
+}
+
+void DX11Renderer::CreateSamplerState()
+{
+    const D3D11_SAMPLER_DESC SamplerDesc =
+    {
+        .Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR,
+        .AddressU = D3D11_TEXTURE_ADDRESS_WRAP,
+        .AddressV = D3D11_TEXTURE_ADDRESS_WRAP,
+        .AddressW = D3D11_TEXTURE_ADDRESS_WRAP,
+        .ComparisonFunc = D3D11_COMPARISON_NEVER,
+        .MinLOD = 0,
+        .MaxLOD = D3D11_FLOAT32_MAX
+    };
+    
+    HR_CHECK(Device->CreateSamplerState(&SamplerDesc, &TextureSamplerState));
+}
+
 
 void DX11Renderer::CreateBuffer(const void* InBufferMemory, const D3D11_BUFFER_DESC* InBufferDesc, ID3D11Buffer** InBuffer) const
 {

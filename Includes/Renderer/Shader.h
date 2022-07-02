@@ -12,7 +12,7 @@ class Shader
 {
 public:
     Shader() = delete;
-    Shader(ID3D11Device* Device, ShaderType InType, const void* Contents, uint64 Size);
+    Shader(ID3D11Device* Device, ShaderType InType, const char* FilePath);
     ~Shader();
 
     ShaderType GetType() const { return Type; }
@@ -24,7 +24,6 @@ private:
     ShaderType Type;
     ID3D11VertexShader* VertexShader;
     ID3D11PixelShader* PixelShader;
-
     const void* ShaderContents;
     uint64 ShaderSize;
 };

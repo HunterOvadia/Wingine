@@ -257,7 +257,8 @@
       <LinkCompiled>true</LinkCompiled>
     </ClCompile>
     <ClCompile Include="Source\Renderer\DX11Renderer.cpp" />
-    <ClCompile Include="Source\Renderer\ShaderBase.cpp" />
+    <ClCompile Include="Source\Renderer\Shader.cpp" />
+    <ClCompile Include="Source\Renderer\Texture.cpp" />
     <ClCompile Include="Source\Renderer\Vertex.cpp">
       <RuntimeLibrary>MultiThreadedDebugDll</RuntimeLibrary>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -342,8 +343,10 @@
     <ClInclude Include="Includes\Core\Window.h" />
     <ClInclude Include="Includes\Defines.h" />
     <ClInclude Include="Includes\Renderer\DX11Renderer.h" />
-    <ClInclude Include="Includes\Renderer\ShaderBase.h" />
+    <ClInclude Include="Includes\Renderer\Shader.h" />
+    <ClInclude Include="Includes\Renderer\Texture.h" />
     <ClInclude Include="Includes\Renderer\Vertex.h" />
+    <ClInclude Include="Includes\ThirdParty\stb_image.h" />
     <ClInclude Include="Includes\Wingine.h" />
   </ItemGroup>
   <ItemGroup>

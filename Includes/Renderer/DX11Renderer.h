@@ -3,10 +3,11 @@
 #include <dxgi.h>
 #include <DirectXMath.h>
 
+#include "Texture.h"
 #include "Core/Application.h"
 
 #define HR_CHECK(HR) if(FAILED(HR)) { WIN_LOG(Error, "DirectX Creation Failure: %s - %d", __FILE__, __LINE__); }
-#define DX_SAFE_RELEASE(Com) if(Com) { Com->Release(); Com = nullptr; }
+#define DX_SAFE_RELEASE(Com) if(Com) { (Com)->Release(); (Com) = nullptr; }
 
 class Shader;
 
@@ -49,7 +50,7 @@ private:
     void CreateDepthStencilView();
     void CreateBuffer(const void* InBufferMemory, const D3D11_BUFFER_DESC* InBufferDesc, ID3D11Buffer** InBuffer) const;
     void CreateViewport(float Width, float Height) const;
-    
+    void CreateSamplerState();
     void CreateWireframeRasterizerState();
 
     void CreateIndexBuffer();
@@ -59,9 +60,11 @@ private:
     void ClearViews();
 
     void SetConstantBufferData(const DirectX::XMMATRIX& InWVP);
+    void SetTexture(ID3D11ShaderResourceView* ResourceView, ID3D11SamplerState* SamplerState);
     
 private:
     bool InitializeShaders();
+    bool InitializeTextures();
     
 private:
     void PreRender();
@@ -83,6 +86,9 @@ private:
 
     Shader* PixelShader;
     Shader* VertexShader;
+    Texture* CubeTexture;
+
+    ID3D11SamplerState* TextureSamplerState;
     
     uint32 Width;
     uint32 Height;

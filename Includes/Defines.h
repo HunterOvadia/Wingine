@@ -30,3 +30,5 @@ STATIC_ASSERT(sizeof(float32) == 4, "Expected f32 to be 4 bytes.");
 STATIC_ASSERT(sizeof(float64) == 8, "Expected f64 to be 8 bytes.");
 
 #define STATIC_ARRAY_SIZE(InArray) (sizeof((InArray))/sizeof((InArray)[0]))
+#define SAFE_DELETE(x) if((x)) { delete (x); (x) = nullptr; }
+#define SAFE_FREE(x) if((x)) { free((x)); (x) = nullptr; }
