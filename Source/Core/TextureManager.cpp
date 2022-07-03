@@ -17,7 +17,9 @@ void TextureManager::Shutdown()
 {
     TextureMap.Empty([](const HashMapNode<const char*, Texture*>& Element)
     {
-        Renderer->DestroyTexture(Element.GetValue());
+        Texture* Value = Element.GetValue();
+        Renderer->DestroyTexture(Value);
+        SAFE_DELETE(Value);
     });
 }
 

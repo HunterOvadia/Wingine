@@ -16,7 +16,9 @@ void ShaderManager::Shutdown()
 {
     ShaderMap.Empty([](const HashMapNode<const char*, Shader*>& Element)
     {
-        Renderer->DestroyShader(Element.GetValue());
+        Shader* Value = Element.GetValue();
+        Renderer->DestroyShader(Value);
+        SAFE_DELETE(Value)
     });
 }
 

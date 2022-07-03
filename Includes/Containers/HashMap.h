@@ -1,8 +1,4 @@
 ﻿#pragma once
-#include <functional>
-#include <iterator>
-#include <optional>
-
 #include "Defines.h"
 #include "Core/Application.h"
 
@@ -61,6 +57,8 @@ struct HashMapKeyHash
 template<typename K, typename V, uint64 TableSize = 1, typename Hash = HashMapKeyHash<K, TableSize>>
 class HashMap
 {
+    using Node = HashMapNode<K, V>;
+    
 public:
     HashMap()
         : Table()
@@ -74,14 +72,14 @@ public:
         Empty({});
     }
 
-    void Empty(Optional<FunctionArg<void(const HashMapNode<K, V>&)>> Function)
+    void Empty(Optional<FunctionArg<void(const Node&)>> Function)
     {
         for(uint64 Index = 0; Index < TableSize; ++Index)
         {
-            HashMapNode<K, V>* Entry = Table[Index];
+            Node* Entry = GetNode(Index);
             while(Entry != nullptr)
             {
-                HashMapNode<K, V>* Prev = Entry;
+                Node* Prev = Entry;
                 Entry = Entry->GetNext();
                 if(Function.has_value())
                 {
@@ -97,8 +95,7 @@ public:
 
     bool Find(const K& InKey, V& OutValue)
     {
-        uint64 HashValue = GetHashValue(InKey);
-        HashMapNode<K, V>* Entry = Table[HashValue];
+        Node* Entry = GetNode(InKey);
         while(Entry != nullptr)
         {
             if(Entry->GetKey() == InKey)
@@ -115,9 +112,9 @@ public:
 
     void Add(const K& InKey, const V& InValue)
     {
+        Node* Prev = nullptr;
         uint64 HashValue = GetHashValue(InKey);
-        HashMapNode<K, V>* Prev = nullptr;
-        HashMapNode<K, V>* Entry = Table[HashValue];
+        Node* Entry = GetNode(HashValue);
 
         while(Entry != nullptr && Entry->GetKey() != InKey)
         {
@@ -127,7 +124,7 @@ public:
 
         if(Entry == nullptr)
         {
-            Entry = new HashMapNode<K, V>(InKey, InValue);
+            Entry = new Node(InKey, InValue);
             if(Prev == nullptr)
             {
                 Table[HashValue] = Entry;
@@ -145,9 +142,9 @@ public:
 
     void Remove(const K& InKey)
     {
+        Node* Prev = nullptr;
         uint64 HashValue = GetHashValue(InKey);
-        HashMapNode<K, V>* Prev = nullptr;
-        HashMapNode<K, V>* Entry = Table[HashValue];
+        Node* Entry = GetNode(HashValue);
 
         while(Entry != nullptr && Entry->GetKey() != InKey)
         {
@@ -173,6 +170,17 @@ public:
     }
 
 private:
+    Node* GetNode(const K& InKey)
+    {
+        const uint64 HashValue = GetHashValue(InKey);
+        return GetNode(HashValue);
+    }
+
+    Node* GetNode(uint64 InHash)
+    {
+        return Table[InHash];
+    }
+    
     uint64 GetHashValue(const K& InKey)
     {
         return HashFunction(InKey);

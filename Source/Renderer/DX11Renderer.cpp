@@ -51,8 +51,6 @@ bool DX11Renderer::Initialize(Window* MainWindow)
 
 void DX11Renderer::Shutdown()
 {
-    CleanupScene();
-    
     DX_SAFE_RELEASE(WireFrameRasterizerState);
     DX_SAFE_RELEASE(ConstantBuffer);
     DX_SAFE_RELEASE(VertexInputLayout);
@@ -231,10 +229,7 @@ void DX11Renderer::RenderScene()
 
 void DX11Renderer::CleanupScene()
 {
-    SAFE_DELETE(PixelShader);
-    SAFE_DELETE(VertexShader);
 }
-
 
 void DX11Renderer::PostRender()
 {
