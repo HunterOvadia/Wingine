@@ -348,6 +348,7 @@
     <ClInclude Include="Includes\Renderer\Vertex.h" />
     <ClInclude Include="Includes\ThirdParty\stb_image.h" />
     <ClInclude Include="Includes\Wingine.h" />
+    <ClInclude Include="Source\Application\Scene.h" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shaders\PixelShader.hlsl">

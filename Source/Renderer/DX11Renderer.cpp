@@ -10,23 +10,29 @@ void CameraData::Initialize(const uint32 Width, const uint32 Height)
     Target = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
     Up = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
     View = DirectX::XMMatrixLookAtLH(Position, Target, Up);
-    Projection = DirectX::XMMatrixPerspectiveFovLH(0.4f * 3.14f, (float)Width/(float)Height, 1.0f, 1000.0f);
+    Projection = DirectX::XMMatrixPerspectiveFovLH(0.4f * 3.14f, static_cast<float>(Width)/static_cast<float>(Height), 1.0f, 1000.0f);
 }
 
 DX11Renderer::DX11Renderer()
     : SwapChain(nullptr)
-    , Device(nullptr)
-    , DeviceContext(nullptr)
-    , RenderTargetView(nullptr)
-    , DepthStencilView(nullptr)
-    , DepthStencilBuffer(nullptr)
-    , SquareIndexBuffer(nullptr)
-    , SquareVertexBuffer(nullptr)
-    , VertexInputLayout(nullptr)
-    , PixelShader(nullptr)
-    , VertexShader(nullptr)
-    , Width(0)
-    , Height(0)
+      , Device(nullptr)
+      , DeviceContext(nullptr)
+      , RenderTargetView(nullptr)
+      , DepthStencilView(nullptr)
+      , DepthStencilBuffer(nullptr)
+      , ConstantBuffer(nullptr)
+      , WireFrameRasterizerState(nullptr)
+      , SquareIndexBuffer(nullptr)
+      , SquareVertexBuffer(nullptr)
+      , VertexInputLayout(nullptr)
+      , PixelShader(nullptr)
+      , VertexShader(nullptr)
+      , CubeTexture(nullptr), TextureSamplerState(nullptr), Width(0)
+      , Height(0)
+      , Camera()
+      , ConstantBufferData()
+      , Cube1World()
+      , Cube2World()
 {
 }
 
@@ -37,21 +43,18 @@ bool DX11Renderer::Initialize(Window* MainWindow)
     CreateDepthStencilView();
     
     DeviceContext->OMSetRenderTargets(1, &RenderTargetView, DepthStencilView);
-    return SetupScene();
+    return true;
 }
 
 void DX11Renderer::Shutdown()
 {
+    CleanupScene();
+    
     DX_SAFE_RELEASE(WireFrameRasterizerState);
     DX_SAFE_RELEASE(ConstantBuffer);
     DX_SAFE_RELEASE(VertexInputLayout);
     DX_SAFE_RELEASE(SquareIndexBuffer);
     DX_SAFE_RELEASE(SquareVertexBuffer);
-
-    SAFE_DELETE(CubeTexture);
-    SAFE_DELETE(PixelShader);
-    SAFE_DELETE(VertexShader);
-    
     DX_SAFE_RELEASE(DepthStencilView);
     DX_SAFE_RELEASE(DepthStencilBuffer);
     DX_SAFE_RELEASE(RenderTargetView);
@@ -65,22 +68,6 @@ void DX11Renderer::PreRender()
     ClearViews();
 }
 
-void DX11Renderer::RenderScene()
-{
-    PreRender();
-
-    SetConstantBufferData(Cube1World);
-    SetTexture(CubeTexture->GetResource(), TextureSamplerState);
-    DeviceContext->DrawIndexed(36, 0, 0);
-
-    SetConstantBufferData(Cube2World);
-    SetTexture(CubeTexture->GetResource(), TextureSamplerState);
-    DeviceContext->DrawIndexed(36, 0, 0);
-
-    PostRender();
-}
-
-
 void DX11Renderer::SetConstantBufferData(const DirectX::XMMATRIX& InWVP)
 {
     ConstantBufferData.UpdateData(InWVP, Camera);
@@ -92,33 +79,6 @@ void DX11Renderer::SetTexture(ID3D11ShaderResourceView* ResourceView, ID3D11Samp
 {
     DeviceContext->PSSetShaderResources(0, 1, &ResourceView);
     DeviceContext->PSSetSamplers(0, 1, &SamplerState);
-}
-
-void DX11Renderer::UpdateScene()
-{
-    Rot += 0.0005f;
-    if(Rot > 6.28f)
-    {
-        Rot = 0.0f;
-    }
-
-    Cube1World = DirectX::XMMatrixIdentity();
-
-    const DirectX::XMVECTOR RotAxis = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-
-    DirectX::XMMATRIX Rotation = DirectX::XMMatrixRotationAxis(RotAxis, Rot);
-    const DirectX::XMMATRIX Translation = DirectX::XMMatrixTranslation(0.0f, 0.0f, 4.0f);
-    Cube1World = (Translation * Rotation);
-
-    Cube2World = DirectX::XMMatrixIdentity();
-    Rotation = DirectX::XMMatrixRotationAxis(RotAxis, -Rot);
-    const DirectX::XMMATRIX Scale = DirectX::XMMatrixScaling(1.3f, 1.3f, 1.3f);
-    Cube2World = (Rotation * Scale);
-}
-
-void DX11Renderer::PostRender()
-{
-    SwapChain->Present(0, 0);
 }
 
 bool DX11Renderer::SetupScene()
@@ -151,6 +111,53 @@ bool DX11Renderer::SetupScene()
     // TODO(HO): States?
     //DeviceContext->RSSetState(WireFrameRasterizerState);
     return true;
+}
+
+void DX11Renderer::UpdateScene()
+{
+    Rot += 0.0005f;
+    if(Rot > 6.28f)
+    {
+        Rot = 0.0f;
+    }
+
+    Cube1World = DirectX::XMMatrixIdentity();
+
+    const DirectX::XMVECTOR RotAxis = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+    DirectX::XMMATRIX Rotation = DirectX::XMMatrixRotationAxis(RotAxis, Rot);
+    const DirectX::XMMATRIX Translation = DirectX::XMMatrixTranslation(0.0f, 0.0f, 4.0f);
+    Cube1World = (Translation * Rotation);
+
+    Cube2World = DirectX::XMMatrixIdentity();
+    Rotation = DirectX::XMMatrixRotationAxis(RotAxis, -Rot);
+    const DirectX::XMMATRIX Scale = DirectX::XMMatrixScaling(1.3f, 1.3f, 1.3f);
+    Cube2World = (Rotation * Scale);
+}
+
+
+void DX11Renderer::RenderScene()
+{
+    SetConstantBufferData(Cube1World);
+    SetTexture(CubeTexture->GetResource(), TextureSamplerState);
+    DeviceContext->DrawIndexed(36, 0, 0);
+
+    SetConstantBufferData(Cube2World);
+    SetTexture(CubeTexture->GetResource(), TextureSamplerState);
+    DeviceContext->DrawIndexed(36, 0, 0);
+}
+
+void DX11Renderer::CleanupScene()
+{
+    SAFE_DELETE(CubeTexture);
+    SAFE_DELETE(PixelShader);
+    SAFE_DELETE(VertexShader);
+}
+
+
+void DX11Renderer::PostRender()
+{
+    SwapChain->Present(1, 0);
 }
 
 void DX11Renderer::CreateVertexBuffer()

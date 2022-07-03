@@ -19,8 +19,8 @@ private:
     Window* MakeWindow(const WindowSettings& InitialSettings);
     
     bool PumpMessages();
-    void UpdateFrame();
-    void RenderFrame();
+    void Update();
+    void Render();
     
 private:
     bool IsRunning;

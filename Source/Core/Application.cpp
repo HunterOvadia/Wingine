@@ -20,10 +20,12 @@ Window* Application::MakeWindow(const WindowSettings& InitialSettings)
         {
             return NewWindow;
         }
+    }
 
+    if(NewWindow)
+    {
         NewWindow->Shutdown();
-        delete NewWindow;
-        NewWindow = nullptr;
+        SAFE_DELETE(NewWindow);
     }
     
     WIN_LOG(Fatal, "Application::MakeWindow - Failed to Initialize NewWindow!");
@@ -58,15 +60,13 @@ void Application::Shutdown()
     if(Renderer)
     {
         Renderer->Shutdown();
-        delete Renderer;
-        Renderer = nullptr;
+        SAFE_DELETE(Renderer);
     }
     
     if(MainWindow)
     {
         MainWindow->Shutdown();
-        delete MainWindow;
-        MainWindow = nullptr;
+        SAFE_DELETE(MainWindow);
     }
     
     WIN_LOG(Info, "App Shutdown!");
@@ -75,6 +75,7 @@ void Application::Shutdown()
 void Application::Start()
 {
     IsRunning = true;
+    Renderer->SetupScene();
 }
 
 void Application::Stop()
@@ -88,8 +89,8 @@ void Application::Run()
     {
         if(PumpMessages())
         {
-            UpdateFrame();
-            RenderFrame();
+            Update();
+            Render();
         }
     }
 }
@@ -111,12 +112,18 @@ bool Application::PumpMessages()
     return IsRunning;
 }
 
-void Application::UpdateFrame()
+void Application::Update()
 {
+    // TODO(HO): Scene/Render Commands
     Renderer->UpdateScene();
 }
 
-void Application::RenderFrame()
+void Application::Render()
 {
+    Renderer->PreRender();
+
+    // TODO(HO): Scene/Render Commands
     Renderer->RenderScene();
+
+    Renderer->PostRender();
 }

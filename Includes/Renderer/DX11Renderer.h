@@ -39,11 +39,18 @@ public:
     DX11Renderer();
     bool Initialize(Window* MainWindow);
     void Shutdown();
-    void RenderScene();
-    void UpdateScene();
-    bool SetupScene();
+    void PreRender();
+    void PostRender();
     void SetShader(const Shader* InShader) const;
+    void SetConstantBufferData(const DirectX::XMMATRIX& InWVP);
 
+public:
+    // TODO(HO): Scenes
+    bool SetupScene();
+    void UpdateScene();
+    void RenderScene();
+    void CleanupScene();
+    
 private:
     void CreateDeviceAndSwapChain(Window* MainWindow);
     void CreateRenderTargetView();
@@ -59,16 +66,13 @@ private:
     void CreateInputLayout();
     void ClearViews();
 
-    void SetConstantBufferData(const DirectX::XMMATRIX& InWVP);
     void SetTexture(ID3D11ShaderResourceView* ResourceView, ID3D11SamplerState* SamplerState);
     
 private:
     bool InitializeShaders();
     bool InitializeTextures();
-    
-private:
-    void PreRender();
-    void PostRender();
+
+
     
 private:
     IDXGISwapChain* SwapChain;
@@ -96,10 +100,10 @@ private:
     // TOOD(HO): Not the right place for this
     CameraData Camera;
     ConstantBufferPerObjectData ConstantBufferData;
-
     DirectX::XMMATRIX Cube1World;
     DirectX::XMMATRIX Cube2World;
     float Rot = 0.01f;
+
 };
 
 
