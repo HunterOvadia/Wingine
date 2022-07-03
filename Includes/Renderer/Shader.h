@@ -1,6 +1,5 @@
 ﻿#pragma once
 #include "Defines.h"
-#include "Vertex.h"
 
 enum class ShaderType : uint8
 {
@@ -10,20 +9,24 @@ enum class ShaderType : uint8
 
 class Shader
 {
+    friend class ShaderManager;
+    
 public:
-    Shader() = delete;
-    Shader(ID3D11Device* Device, ShaderType InType, const char* FilePath);
-    ~Shader();
-
+    Shader(ShaderType InType, void* InShaderBytecode, uint64 InShaderSize)
+        : Type(InType)
+        , ShaderData(nullptr)
+        , ShaderBytecode(InShaderBytecode)
+        , ShaderSize(InShaderSize) {}
+    
+    template<typename T>
+    T* GetShader() const { return (T*)ShaderData; }
     ShaderType GetType() const { return Type; }
-    ID3D11DeviceChild* GetShader() const;
-    const void* GetContents() const { return ShaderContents; }
+    void* GetBytecode() const { return ShaderBytecode; }
     uint64 GetSize() const { return ShaderSize; }
     
 private:
     ShaderType Type;
-    ID3D11VertexShader* VertexShader;
-    ID3D11PixelShader* PixelShader;
-    const void* ShaderContents;
+    void* ShaderData;
+    void* ShaderBytecode;
     uint64 ShaderSize;
 };

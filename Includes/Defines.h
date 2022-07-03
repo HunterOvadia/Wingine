@@ -5,6 +5,8 @@
 #else
 #define STATIC_ASSERT static_assert
 #endif
+#include <functional>
+#include <optional>
 
 typedef unsigned char       uint8;
 typedef unsigned short      uint16;
@@ -32,3 +34,9 @@ STATIC_ASSERT(sizeof(float64) == 8, "Expected f64 to be 8 bytes.");
 #define STATIC_ARRAY_SIZE(InArray) (sizeof((InArray))/sizeof((InArray)[0]))
 #define SAFE_DELETE(x) if((x)) { delete (x); (x) = nullptr; }
 #define SAFE_FREE(x) if((x)) { free((x)); (x) = nullptr; }
+
+template<typename T>
+using Optional = std::optional<T>;
+
+template<typename T>
+using FunctionArg = std::function<T>;

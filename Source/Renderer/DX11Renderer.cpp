@@ -2,7 +2,10 @@
 #include <d3d11.h>
 #include "Core/FileIO.h"
 #include "Core/Logger.h"
+#include "Core/ShaderManager.h"
+#include "Core/TextureManager.h"
 #include "Renderer/Shader.h"
+#include "Renderer/Vertex.h"
 
 void CameraData::Initialize(const uint32 Width, const uint32 Height)
 {
@@ -75,13 +78,92 @@ void DX11Renderer::SetConstantBufferData(const DirectX::XMMATRIX& InWVP)
     DeviceContext->VSSetConstantBuffers(0, 1, &ConstantBuffer);
 }
 
+void DX11Renderer::CreateTexture(void* InTextureData, uint32 InWidth, uint32 InHeight, void** OutData)
+{
+    const D3D11_TEXTURE2D_DESC TextureDesc =
+{
+        .Width = InWidth,
+        .Height = InHeight,
+        .MipLevels = 1,
+        .ArraySize = 1,
+        .Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+        .SampleDesc = {
+            .Count = 1,
+            .Quality = 0,
+        },
+        .Usage = D3D11_USAGE_IMMUTABLE,
+        .BindFlags = D3D11_BIND_SHADER_RESOURCE,
+        .CPUAccessFlags = 0,
+        .MiscFlags = 0
+    };
+
+    const D3D11_SUBRESOURCE_DATA TextureData =
+    {
+        .pSysMem = InTextureData,
+        .SysMemPitch = (InWidth * 4)
+    };
+
+    ID3D11Texture2D* Texture;
+    HR_CHECK(Device->CreateTexture2D(&TextureDesc, &TextureData, &Texture));
+    HR_CHECK(Device->CreateShaderResourceView(Texture, nullptr, reinterpret_cast<ID3D11ShaderResourceView**>(OutData)));
+    DX_SAFE_RELEASE(Texture);
+}
+
+void DX11Renderer::DestroyTexture(Texture* InTexture)
+{
+    ID3D11ShaderResourceView* TexSRV = InTexture->GetResource<ID3D11ShaderResourceView>();
+    DX_SAFE_RELEASE(TexSRV);
+}
+
+void DX11Renderer::CreateShader(ShaderType InType, void* InShaderData, uint64 InSize, void** OutShader)
+{
+    switch(InType)
+    {
+        case ShaderType::Vertex:
+        {
+           HR_CHECK(Device->CreateVertexShader(InShaderData, InSize, nullptr, reinterpret_cast<ID3D11VertexShader**>(OutShader)));
+        }
+        break;
+        case ShaderType::Pixel:
+        {
+           HR_CHECK(Device->CreatePixelShader(InShaderData, InSize, nullptr, reinterpret_cast<ID3D11PixelShader**>(OutShader)));
+        }
+        break;
+    }
+}
+
+void DX11Renderer::DestroyShader(Shader* InShader)
+{
+    switch(InShader->GetType())
+    {
+        case ShaderType::Vertex:
+        {
+            ID3D11VertexShader* VS = InShader->GetShader<ID3D11VertexShader>();
+            DX_SAFE_RELEASE(VS);
+        }
+        break;
+        case ShaderType::Pixel:
+        {
+            ID3D11PixelShader* PS = InShader->GetShader<ID3D11PixelShader>();
+            DX_SAFE_RELEASE(PS);
+        }
+        break;
+    }
+
+    if(void* ByteCode = InShader->GetBytecode())
+    {
+        VirtualFree(ByteCode, InShader->GetSize(), MEM_RELEASE);
+        ByteCode = nullptr;
+    }
+}
+
 void DX11Renderer::SetTexture(ID3D11ShaderResourceView* ResourceView, ID3D11SamplerState* SamplerState)
 {
     DeviceContext->PSSetShaderResources(0, 1, &ResourceView);
     DeviceContext->PSSetSamplers(0, 1, &SamplerState);
 }
 
-bool DX11Renderer::SetupScene()
+bool DX11Renderer::InitializeScene()
 {
     if(!InitializeTextures() || !InitializeShaders())
     {
@@ -139,17 +221,16 @@ void DX11Renderer::UpdateScene()
 void DX11Renderer::RenderScene()
 {
     SetConstantBufferData(Cube1World);
-    SetTexture(CubeTexture->GetResource(), TextureSamplerState);
+    SetTexture(CubeTexture->GetResource<ID3D11ShaderResourceView>(), TextureSamplerState);
     DeviceContext->DrawIndexed(36, 0, 0);
 
     SetConstantBufferData(Cube2World);
-    SetTexture(CubeTexture->GetResource(), TextureSamplerState);
+    SetTexture(CubeTexture->GetResource<ID3D11ShaderResourceView>(), TextureSamplerState);
     DeviceContext->DrawIndexed(36, 0, 0);
 }
 
 void DX11Renderer::CleanupScene()
 {
-    SAFE_DELETE(CubeTexture);
     SAFE_DELETE(PixelShader);
     SAFE_DELETE(VertexShader);
 }
@@ -268,7 +349,7 @@ void DX11Renderer::CreateConstantBuffer()
 
 void DX11Renderer::CreateInputLayout()
 {
-    HR_CHECK(Device->CreateInputLayout(Vertex::Layout, Vertex::LayoutCount, VertexShader->GetContents(), VertexShader->GetSize(), &VertexInputLayout));
+    HR_CHECK(Device->CreateInputLayout(Vertex::Layout, Vertex::LayoutCount, VertexShader->GetBytecode(), VertexShader->GetSize(), &VertexInputLayout));
     DeviceContext->IASetInputLayout(VertexInputLayout);
 }
 
@@ -283,12 +364,12 @@ void DX11Renderer::SetShader(const Shader* InShader) const
     {
         case ShaderType::Vertex:
         {
-            DeviceContext->VSSetShader(static_cast<ID3D11VertexShader*>(InShader->GetShader()), nullptr, 0);
+            DeviceContext->VSSetShader(InShader->GetShader<ID3D11VertexShader>(), nullptr, 0);
         }
         break;
         case ShaderType::Pixel:
         {
-            DeviceContext->PSSetShader(static_cast<ID3D11PixelShader*>(InShader->GetShader()), nullptr, 0);
+            DeviceContext->PSSetShader(InShader->GetShader<ID3D11PixelShader>(), nullptr, 0);
         }
         break;
     }
@@ -365,16 +446,14 @@ void DX11Renderer::CreateDepthStencilView()
 
 bool DX11Renderer::InitializeShaders()
 {
-    // TODO(HO): Shader Management/Factory with Device
-    VertexShader = new Shader(Device, ShaderType::Vertex, "VertexShader.cso");
-    PixelShader = new Shader(Device, ShaderType::Pixel, "PixelShader.cso");
+    VertexShader = ShaderManager::Create(ShaderType::Vertex, "VertexShader.cso");
+    PixelShader = ShaderManager::Create(ShaderType::Pixel, "PixelShader.cso");
     return true;
 }
 
 bool DX11Renderer::InitializeTextures()
 {
-    // TODO(HO): Texture Management/Factory with Device
-    CubeTexture = new Texture("TestTexture.png", Device);
+    CubeTexture = TextureManager::Create("TestTexture.png");
     return true;
 }
 

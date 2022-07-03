@@ -3,7 +3,8 @@
 #include <cstdlib>
 #include <cstring>
 
-
+MemoryBlockNode* Memory::Head = nullptr;
+uint64 Memory::TotalAllocationSize = 0;
 void* Memory::Allocate(const uint64 InSize)
 {
     MemoryBlockNode* Node = static_cast<MemoryBlockNode*>(malloc(sizeof(MemoryBlockNode) + InSize));
@@ -19,6 +20,13 @@ void* Memory::Allocate(const uint64 InSize)
 
     Node->AllocationSize = InSize;
     TotalAllocationSize += InSize;
+
+    if(Head)
+    {
+        Head->Prev = Node;
+        Node->Next = Head;
+    }
+    
     Head = Node;
 
     return (reinterpret_cast<char*>(Node) + sizeof(*Node));
@@ -48,8 +56,7 @@ void Memory::Free(void* Pointer)
     }
 
     TotalAllocationSize -= Node->AllocationSize;
-    free(Node);
-    Node = nullptr;
+    SAFE_FREE(Node)
 }
 
 void Memory::Set(void* Dest, const int Value, const uint64 Size)
@@ -62,7 +69,7 @@ void Memory::Zero(void* Dest, const uint64 Size)
     Set(Dest, 0, Size);
 }
 
-void Memory::Log() const
+void Memory::Log()
 {
     MemoryBlockNode* Node = Head;
     while(Node != nullptr)

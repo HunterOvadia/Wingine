@@ -11,19 +11,13 @@ struct MemoryBlockNode
 class Memory
 {
 public:
-    Memory()
-        : Head(nullptr)
-        , TotalAllocationSize(0) {}
-    
-    void* Allocate(uint64 InSize);
-    void Free(void* Pointer);
-    void Set(void* Dest, int Value, uint64 Size);
-    void Zero(void* Dest, uint64 Size);
-    void Log() const;
+    static void* Allocate(uint64 InSize);
+    static void Free(void* Pointer);
+    static void Set(void* Dest, int Value, uint64 Size);
+    static void Zero(void* Dest, uint64 Size);
+    static void Log();
 
 private:
-    MemoryBlockNode* Head;
-    uint64 TotalAllocationSize;
+    static MemoryBlockNode* Head;
+    static uint64 TotalAllocationSize;
 };
-
-static Memory GMemory;

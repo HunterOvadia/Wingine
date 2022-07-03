@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include "Window.h"
 
-class DX11Renderer;
+class IRenderer;
 class Application
 {
 public:
@@ -25,5 +25,5 @@ private:
 private:
     bool IsRunning;
     Window* MainWindow;
-    DX11Renderer* Renderer;
+    IRenderer* Renderer;
 };

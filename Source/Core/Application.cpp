@@ -1,8 +1,8 @@
-﻿#pragma once
-#include "Core/Application.h"
+﻿#include "Core/Application.h"
 #include "Core/Logger.h"
+#include "Core/ShaderManager.h"
 #include "Renderer/DX11Renderer.h"
-
+#include "Core/TextureManager.h"
 
 Application::Application()
     : IsRunning(false)
@@ -35,19 +35,13 @@ Window* Application::MakeWindow(const WindowSettings& InitialSettings)
 bool Application::Initialize(const WindowSettings& InitialSettings)
 {
     MainWindow = MakeWindow(InitialSettings);
-    if(!MainWindow)
-    {
-        return false;
-    }
     
     Renderer = new DX11Renderer();
-    if(!Renderer)
-    {
-        return false;
-    }
-
     if(Renderer->Initialize(MainWindow))
     {
+        ShaderManager::Initialize(Renderer);
+        TextureManager::Initialize(Renderer);
+        
         MainWindow->Show();
         return true;
     }
@@ -57,6 +51,9 @@ bool Application::Initialize(const WindowSettings& InitialSettings)
 
 void Application::Shutdown()
 {
+    TextureManager::Shutdown();
+    ShaderManager::Shutdown();
+    
     if(Renderer)
     {
         Renderer->Shutdown();
@@ -75,7 +72,7 @@ void Application::Shutdown()
 void Application::Start()
 {
     IsRunning = true;
-    Renderer->SetupScene();
+    Renderer->InitializeScene();
 }
 
 void Application::Stop()

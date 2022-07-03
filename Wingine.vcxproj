@@ -183,6 +183,8 @@
     <ClCompile Include="Source\Core\FileIO.cpp" />
     <ClCompile Include="Source\Core\Logger.cpp" />
     <ClCompile Include="Source\Core\Memory.cpp" />
+    <ClCompile Include="Source\Core\ShaderManager.cpp" />
+    <ClCompile Include="Source\Core\TextureManager.cpp" />
     <ClCompile Include="Source\Core\Window.cpp">
       <RuntimeLibrary>MultiThreadedDebugDll</RuntimeLibrary>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -335,20 +337,23 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Includes\Containers\HashMap.h" />
     <ClInclude Include="Includes\Containers\Vector.h" />
     <ClInclude Include="Includes\Core\Application.h" />
     <ClInclude Include="Includes\Core\FileIO.h" />
     <ClInclude Include="Includes\Core\Logger.h" />
     <ClInclude Include="Includes\Core\Memory.h" />
+    <ClInclude Include="Includes\Core\ShaderManager.h" />
+    <ClInclude Include="Includes\Core\TextureManager.h" />
     <ClInclude Include="Includes\Core\Window.h" />
     <ClInclude Include="Includes\Defines.h" />
     <ClInclude Include="Includes\Renderer\DX11Renderer.h" />
+    <ClInclude Include="Includes\Renderer\Renderer.h" />
     <ClInclude Include="Includes\Renderer\Shader.h" />
     <ClInclude Include="Includes\Renderer\Texture.h" />
     <ClInclude Include="Includes\Renderer\Vertex.h" />
     <ClInclude Include="Includes\ThirdParty\stb_image.h" />
     <ClInclude Include="Includes\Wingine.h" />
-    <ClInclude Include="Source\Application\Scene.h" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shaders\PixelShader.hlsl">
@@ -361,6 +366,9 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
     </FxCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Source\Application" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

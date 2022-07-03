@@ -6,12 +6,12 @@
 
 void* operator new(size_t Size)
 {
-    return GMemory.Allocate(Size);
+    return Memory::Allocate(Size);
 }
 
 void operator delete(void* Pointer)
 {
-    GMemory.Free(Pointer);
+    Memory::Free(Pointer);
 }
 
 int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR CmdLine, int CmdShow)
@@ -31,6 +31,6 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR CmdLine, i
     }
 
     App.Shutdown();
-    GMemory.Log();
+    Memory::Log();
     return 0;
 }

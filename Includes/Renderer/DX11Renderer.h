@@ -2,9 +2,9 @@
 #include <d3d11.h>
 #include <dxgi.h>
 #include <DirectXMath.h>
-
 #include "Texture.h"
 #include "Core/Application.h"
+#include "Renderer.h"
 
 #define HR_CHECK(HR) if(FAILED(HR)) { WIN_LOG(Error, "DirectX Creation Failure: %s - %d", __FILE__, __LINE__); }
 #define DX_SAFE_RELEASE(Com) if(Com) { (Com)->Release(); (Com) = nullptr; }
@@ -33,25 +33,35 @@ struct ConstantBufferPerObjectData
 };
 
 
-class DX11Renderer
+class DX11Renderer : public IRenderer
 {
 public:
     DX11Renderer();
-    bool Initialize(Window* MainWindow);
-    void Shutdown();
-    void PreRender();
-    void PostRender();
-    void SetShader(const Shader* InShader) const;
-    void SetConstantBufferData(const DirectX::XMMATRIX& InWVP);
 
 public:
+    ID3D11Device* GetDevice() const { return Device; }
+    
+public:
+    bool Initialize(Window* MainWindow) override;
+    void Shutdown() override;
+
     // TODO(HO): Scenes
-    bool SetupScene();
-    void UpdateScene();
-    void RenderScene();
-    void CleanupScene();
+    bool InitializeScene() override;
+    void UpdateScene() override;
+    void RenderScene() override;   
+    void CleanupScene() override;
+    
+    void PreRender() override;
+    void PostRender() override;
+    void CreateTexture(void* InTextureData, uint32 InWidth, uint32 InHeight, void** OutData) override;
+    void DestroyTexture(Texture* InTexture) override;
+    
+    void CreateShader(ShaderType InType, void* InShaderData, uint64 InSize, void** OutShader) override;
+    void DestroyShader(Shader* InShader) override;
     
 private:
+    void SetShader(const Shader* InShader) const;
+    void SetConstantBufferData(const DirectX::XMMATRIX& InWVP);
     void CreateDeviceAndSwapChain(Window* MainWindow);
     void CreateRenderTargetView();
     void CreateDepthStencilView();
@@ -65,15 +75,12 @@ private:
     void CreateConstantBuffer();
     void CreateInputLayout();
     void ClearViews();
-
     void SetTexture(ID3D11ShaderResourceView* ResourceView, ID3D11SamplerState* SamplerState);
     
 private:
     bool InitializeShaders();
     bool InitializeTextures();
 
-
-    
 private:
     IDXGISwapChain* SwapChain;
     ID3D11Device* Device;
