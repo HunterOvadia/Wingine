@@ -3,6 +3,7 @@
 class Window;
 class Texture;
 class Shader;
+enum class ShaderType : uint8;
 class IRenderer
 {
 public:
@@ -13,7 +14,7 @@ public:
 
     // TODO(HO): Move SceneManagement
     virtual bool InitializeScene() = 0;
-    virtual void UpdateScene() = 0;
+    virtual void UpdateScene(float64 DeltaTime) = 0;
     virtual void RenderScene() = 0;
     virtual void CleanupScene() = 0;
 
@@ -25,4 +26,6 @@ public:
     
     virtual void CreateShader(ShaderType InType, void* InShaderData, uint64 InSize, void** OutShader) = 0;
     virtual void DestroyShader(Shader* InShader) = 0;
+
+    virtual void ResizeViewport(float Width, float Height) = 0;
 };

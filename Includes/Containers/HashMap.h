@@ -57,9 +57,9 @@ struct HashMapKeyHash
 template<typename K, typename V, uint64 TableSize = 1, typename Hash = HashMapKeyHash<K, TableSize>>
 class HashMap
 {
-    using Node = HashMapNode<K, V>;
-    
 public:
+    using Node = HashMapNode<K, V>;
+
     HashMap()
         : Table()
         , HashFunction() {}
@@ -72,6 +72,19 @@ public:
         Empty({});
     }
 
+    void ForEach(FunctionArg<void(const Node&)> Function)
+    {
+        for(uint64 Index = 0; Index < TableSize; ++Index)
+        {
+            Node* Entry = GetNode(Index);
+            while(Entry != nullptr)
+            {
+                Function(*Entry);
+                Entry = Entry->GetNext();
+            }
+        }
+    }
+    
     void Empty(Optional<FunctionArg<void(const Node&)>> Function)
     {
         for(uint64 Index = 0; Index < TableSize; ++Index)

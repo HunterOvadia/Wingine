@@ -47,7 +47,7 @@ public:
 
     // TODO(HO): Scenes
     bool InitializeScene() override;
-    void UpdateScene() override;
+    void UpdateScene(float64 DeltaTime) override;
     void RenderScene() override;   
     void CleanupScene() override;
     
@@ -58,6 +58,7 @@ public:
     
     void CreateShader(ShaderType InType, void* InShaderData, uint64 InSize, void** OutShader) override;
     void DestroyShader(Shader* InShader) override;
+    void ResizeViewport(float Width, float Height) override;
     
 private:
     void SetShader(const Shader* InShader) const;
@@ -66,10 +67,11 @@ private:
     void CreateRenderTargetView();
     void CreateDepthStencilView();
     void CreateBuffer(const void* InBufferMemory, const D3D11_BUFFER_DESC* InBufferDesc, ID3D11Buffer** InBuffer) const;
-    void CreateViewport(float Width, float Height) const;
     void CreateSamplerState();
-    void CreateWireframeRasterizerState();
-
+    void CreateRasterizerStates();
+    void CreateBlendState();
+    void SetDefaultBlendState();
+    
     void CreateIndexBuffer();
     void CreateVertexBuffer();
     void CreateConstantBuffer();
@@ -89,7 +91,13 @@ private:
     ID3D11DepthStencilView* DepthStencilView;
     ID3D11Texture2D* DepthStencilBuffer;
     ID3D11Buffer* ConstantBuffer;
+    
     ID3D11RasterizerState* WireFrameRasterizerState;
+    ID3D11RasterizerState* CCWRasterizerState;
+    ID3D11RasterizerState* CWRasterizerState;
+    ID3D11RasterizerState* NoCullRasterizerState;
+    
+    ID3D11BlendState* BlendState;
 
     ID3D11Buffer* SquareIndexBuffer;
     ID3D11Buffer* SquareVertexBuffer;
@@ -99,7 +107,7 @@ private:
     Shader* VertexShader;
     Texture* CubeTexture;
 
-    ID3D11SamplerState* TextureSamplerState;
+    ID3D11SamplerState* SampleState;
     
     uint32 Width;
     uint32 Height;
@@ -109,7 +117,7 @@ private:
     ConstantBufferPerObjectData ConstantBufferData;
     DirectX::XMMATRIX Cube1World;
     DirectX::XMMATRIX Cube2World;
-    float Rot = 0.01f;
+    float32 Rot = 0.01f;
 
 };
 

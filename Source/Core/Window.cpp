@@ -1,5 +1,8 @@
 #include "Core/Window.h"
+
+#include "Core/Application.h"
 #include "Core/Logger.h"
+#include "Renderer/Renderer.h"
 
 static LRESULT CALLBACK ProcessMessages(HWND Handle, uint32 Message, WPARAM WParam, LPARAM LParam)
 {
@@ -11,20 +14,27 @@ static LRESULT CALLBACK ProcessMessages(HWND Handle, uint32 Message, WPARAM WPar
 		}
 		break;
 
-		case WM_KEYDOWN:
-		case WM_KEYUP:
-		case WM_SYSKEYDOWN:
-		case WM_SYSKEYUP:
+		case WM_SIZE:
 		{
+			// const float Width = LOWORD(LParam);
+			// const float Height = HIWORD(LParam);
+			// if(const Application* App = Application::Get())
+			// {
+			// 	if(IRenderer* Renderer = App->GetRenderer())
+			// 	{
+			// 		Renderer->ResizeViewport(Width, Height);
+			// 	}
+			// }
+			break;
 		}
-		break;
 	}
 	
 	return DefWindowProcA(Handle, Message, WParam, LParam);
 }
 
 Window::Window()
-	: Handle(nullptr)
+	: Settings()
+	, Handle(nullptr)
 {
 	Instance = GetModuleHandleA(nullptr);
 }
@@ -40,7 +50,7 @@ bool Window::Initialize(const WindowSettings& InitialSettings)
 		.hInstance = Instance, 
 		.hIcon = LoadIcon(Instance, IDI_APPLICATION),
 		.hCursor = LoadCursor(nullptr, IDC_ARROW),
-		.hbrBackground = NULL,
+		.hbrBackground = nullptr,
 		.lpszClassName = "wingine_window_class"
 	};
 

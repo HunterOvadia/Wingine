@@ -30,7 +30,7 @@ DX11Renderer::DX11Renderer()
       , VertexInputLayout(nullptr)
       , PixelShader(nullptr)
       , VertexShader(nullptr)
-      , CubeTexture(nullptr), TextureSamplerState(nullptr), Width(0)
+      , CubeTexture(nullptr), SampleState(nullptr), Width(0)
       , Height(0)
       , Camera()
       , ConstantBufferData()
@@ -44,13 +44,21 @@ bool DX11Renderer::Initialize(Window* MainWindow)
     CreateDeviceAndSwapChain(MainWindow);
     CreateRenderTargetView();
     CreateDepthStencilView();
+    CreateSamplerState();
+    CreateBlendState();
+    CreateRasterizerStates();
     
+    ResizeViewport(static_cast<float>(Width), static_cast<float>(Height));
     DeviceContext->OMSetRenderTargets(1, &RenderTargetView, DepthStencilView);
     return true;
 }
 
 void DX11Renderer::Shutdown()
 {
+    DX_SAFE_RELEASE(NoCullRasterizerState);
+    DX_SAFE_RELEASE(CWRasterizerState);
+    DX_SAFE_RELEASE(CCWRasterizerState);
+    DX_SAFE_RELEASE(BlendState);
     DX_SAFE_RELEASE(WireFrameRasterizerState);
     DX_SAFE_RELEASE(ConstantBuffer);
     DX_SAFE_RELEASE(VertexInputLayout);
@@ -67,6 +75,7 @@ void DX11Renderer::Shutdown()
 void DX11Renderer::PreRender()
 {
     ClearViews();
+    SetDefaultBlendState();
 }
 
 void DX11Renderer::SetConstantBufferData(const DirectX::XMMATRIX& InWVP)
@@ -171,16 +180,10 @@ bool DX11Renderer::InitializeScene()
     SetShader(VertexShader);
     SetShader(PixelShader);
     
-    CreateSamplerState();
     CreateVertexBuffer();
     CreateIndexBuffer();
     CreateConstantBuffer();
     CreateInputLayout();
-    
-    // TODO(HO): States?
-    CreateWireframeRasterizerState();
-    
-    CreateViewport(static_cast<float>(Width), static_cast<float>(Height));
 
     // TODO(HO): Move this :)
     Camera.Initialize(Width, Height);
@@ -193,9 +196,9 @@ bool DX11Renderer::InitializeScene()
     return true;
 }
 
-void DX11Renderer::UpdateScene()
+void DX11Renderer::UpdateScene(float64 DeltaTime)
 {
-    Rot += 0.0005f;
+    Rot += 1.0f * DeltaTime;
     if(Rot > 6.28f)
     {
         Rot = 0.0f;
@@ -219,11 +222,11 @@ void DX11Renderer::UpdateScene()
 void DX11Renderer::RenderScene()
 {
     SetConstantBufferData(Cube1World);
-    SetTexture(CubeTexture->GetResource<ID3D11ShaderResourceView>(), TextureSamplerState);
+    SetTexture(CubeTexture->GetResource<ID3D11ShaderResourceView>(), SampleState);
     DeviceContext->DrawIndexed(36, 0, 0);
 
     SetConstantBufferData(Cube2World);
-    SetTexture(CubeTexture->GetResource<ID3D11ShaderResourceView>(), TextureSamplerState);
+    SetTexture(CubeTexture->GetResource<ID3D11ShaderResourceView>(), SampleState);
     DeviceContext->DrawIndexed(36, 0, 0);
 }
 
@@ -380,15 +383,7 @@ void DX11Renderer::CreateDeviceAndSwapChain(Window* MainWindow)
     {
         .Width = Width,
         .Height = Height,
-        
-        .RefreshRate = {
-            .Numerator = 60,
-            .Denominator = 1
-         },
-        
         .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
-        .ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED,
-        .Scaling = DXGI_MODE_SCALING_UNSPECIFIED
     };
 
     const DXGI_SWAP_CHAIN_DESC SwapChainDesc =
@@ -396,16 +391,17 @@ void DX11Renderer::CreateDeviceAndSwapChain(Window* MainWindow)
         .BufferDesc = BufferDesc,
         .SampleDesc = {
             .Count = 1,
-            .Quality = 0
          },
         .BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT,
         .BufferCount = 1,
         .OutputWindow = MainWindow->GetHandle(),
         .Windowed = true,
-        .SwapEffect = DXGI_SWAP_EFFECT_DISCARD
+        .SwapEffect = DXGI_SWAP_EFFECT_DISCARD,
     };
 
-    HR_CHECK(D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, NULL, nullptr, NULL, D3D11_SDK_VERSION, &SwapChainDesc, &SwapChain, &Device, nullptr, &DeviceContext));
+    // TODO(HO): Debug Flags
+    const uint32 Flags = 0;
+    HR_CHECK(D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, Flags, nullptr, NULL, D3D11_SDK_VERSION, &SwapChainDesc, &SwapChain, &Device, nullptr, &DeviceContext));
 }
 
 void DX11Renderer::CreateRenderTargetView()
@@ -461,11 +457,10 @@ void DX11Renderer::CreateSamplerState()
         .AddressV = D3D11_TEXTURE_ADDRESS_WRAP,
         .AddressW = D3D11_TEXTURE_ADDRESS_WRAP,
         .ComparisonFunc = D3D11_COMPARISON_NEVER,
-        .MinLOD = 0,
         .MaxLOD = D3D11_FLOAT32_MAX
     };
     
-    HR_CHECK(Device->CreateSamplerState(&SamplerDesc, &TextureSamplerState));
+    HR_CHECK(Device->CreateSamplerState(&SamplerDesc, &SampleState));
 }
 
 
@@ -479,30 +474,78 @@ void DX11Renderer::CreateBuffer(const void* InBufferMemory, const D3D11_BUFFER_D
     HR_CHECK(Device->CreateBuffer(InBufferDesc, InBufferMemory ? &BufferData : nullptr, InBuffer));
 }
 
-void DX11Renderer::CreateViewport(float Width, float Height) const
+void DX11Renderer::ResizeViewport(float Width, float Height)
 {
     const D3D11_VIEWPORT Viewport =
     {
-        .TopLeftX = 0,
-        .TopLeftY = 0,
         .Width = Width,
         .Height = Height,
-        .MinDepth = 0.0f,
         .MaxDepth = 1.0f
     };
-    
-    DeviceContext->RSSetViewports(1, &Viewport);
+
+    if(Viewport.Width > 0 && Viewport.Height > 0)
+    {
+        DeviceContext->RSSetViewports(1, &Viewport);
+    }
 }
 
-void DX11Renderer::CreateWireframeRasterizerState()
+void DX11Renderer::CreateRasterizerStates()
 {
-    const D3D11_RASTERIZER_DESC RasterizerDesc =
+    const D3D11_RASTERIZER_DESC WireframeRasterizerDesc =
     {
         .FillMode = D3D11_FILL_WIREFRAME,
         .CullMode = D3D11_CULL_NONE
     };
+    HR_CHECK(Device->CreateRasterizerState(&WireframeRasterizerDesc, &WireFrameRasterizerState));
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    D3D11_RASTERIZER_DESC SpinningRasterizerDesc =
+    {
+        .FillMode = D3D11_FILL_SOLID,
+        .CullMode = D3D11_CULL_BACK,
+        .FrontCounterClockwise = true
+    };
+    HR_CHECK(Device->CreateRasterizerState(&SpinningRasterizerDesc, &CCWRasterizerState));
+    SpinningRasterizerDesc.FrontCounterClockwise = false;
+    HR_CHECK(Device->CreateRasterizerState(&SpinningRasterizerDesc, &CWRasterizerState));
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    const D3D11_RASTERIZER_DESC NoCullRasterizerDesc =
+    {
+        .FillMode = D3D11_FILL_SOLID,
+        .CullMode = D3D11_CULL_NONE
+    };
+    HR_CHECK(Device->CreateRasterizerState(&NoCullRasterizerDesc, &NoCullRasterizerState));
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+}
 
-    HR_CHECK(Device->CreateRasterizerState(&RasterizerDesc, &WireFrameRasterizerState));
+
+void DX11Renderer::CreateBlendState()
+{
+    const D3D11_RENDER_TARGET_BLEND_DESC RenderTargetBlendDesc =
+    {
+        .BlendEnable = true,
+        .SrcBlend = D3D11_BLEND_SRC_COLOR,
+        .DestBlend = D3D11_BLEND_BLEND_FACTOR,
+        .BlendOp = D3D11_BLEND_OP_ADD,
+        .SrcBlendAlpha = D3D11_BLEND_ONE,
+        .DestBlendAlpha = D3D11_BLEND_ZERO,
+        .BlendOpAlpha = D3D11_BLEND_OP_ADD,
+        .RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL
+    };
+
+    const D3D11_BLEND_DESC BlendDesc =
+    {
+        .AlphaToCoverageEnable = false,
+        .RenderTarget = {
+            RenderTargetBlendDesc
+        }
+    };
+
+    HR_CHECK(Device->CreateBlendState(&BlendDesc, &BlendState));
+}
+
+void DX11Renderer::SetDefaultBlendState()
+{
+    DeviceContext->OMSetBlendState(nullptr, nullptr, 0xffffffff);
 }
 
 void DX11Renderer::ClearViews()

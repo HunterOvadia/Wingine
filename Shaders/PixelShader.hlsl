@@ -8,5 +8,7 @@ Texture2D ObjectTexture;
 SamplerState ObjectSamplerState;
 float4 main(VS_OUTPUT Input) : SV_TARGET
 {
-	return ObjectTexture.Sample(ObjectSamplerState, Input.TexCoord);
+	float4 Diffuse = ObjectTexture.Sample(ObjectSamplerState, Input.TexCoord);
+	clip(Diffuse.a - 0.25);
+	return Diffuse;
 }

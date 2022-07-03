@@ -86,7 +86,7 @@ void Application::Run()
     {
         if(PumpMessages())
         {
-            Update();
+            Update(Timer.Update());
             Render();
         }
     }
@@ -109,10 +109,10 @@ bool Application::PumpMessages()
     return IsRunning;
 }
 
-void Application::Update()
+void Application::Update(float64 DeltaTime)
 {
     // TODO(HO): Scene/Render Commands
-    Renderer->UpdateScene();
+    Renderer->UpdateScene(DeltaTime);
 }
 
 void Application::Render()
@@ -123,4 +123,53 @@ void Application::Render()
     Renderer->RenderScene();
 
     Renderer->PostRender();
+}
+
+float64 FrameTimer::Update()
+{
+    FrameCount++;
+
+    if(GetTime() > 1.0f)
+    {
+        FPS = FrameCount;
+        FrameCount = 0;
+        StartTimer();
+    }
+
+    FrameTime = UpdateFrameTime();
+    return FrameTime;
+}
+
+void FrameTimer::StartTimer()
+{
+    LARGE_INTEGER FrequencyCount;
+    QueryPerformanceFrequency(&FrequencyCount);
+
+    CountsPerSecond = static_cast<float64>(FrequencyCount.QuadPart);
+
+    QueryPerformanceCounter(&FrequencyCount);
+    CounterStart = FrequencyCount.QuadPart;
+}
+
+float64 FrameTimer::GetTime() const
+{
+    LARGE_INTEGER CurrentTime;
+    QueryPerformanceCounter(&CurrentTime);
+    return static_cast<float64>(CurrentTime.QuadPart - CounterStart) / CountsPerSecond;
+}
+
+float64 FrameTimer::UpdateFrameTime()
+{
+    LARGE_INTEGER CurrentTime;
+    QueryPerformanceCounter(&CurrentTime);
+
+    int64 TickCount = CurrentTime.QuadPart - FrameTimeOld;
+    FrameTimeOld = CurrentTime.QuadPart;
+
+    if(TickCount < 0)
+    {
+        TickCount = 0;
+    }
+
+    return static_cast<float32>(TickCount)/CountsPerSecond;
 }
