@@ -18,38 +18,41 @@ void CameraData::Update(float64 Time)
     {
         MoveBackForward += Speed;
     }
+    
     if(Input::IsKeyDown(DIK_A))
     {
         MoveLeftRight -= Speed;
     }
+    
     if(Input::IsKeyDown(DIK_S))
     {
         MoveBackForward -= Speed;
     }
+    
     if(Input::IsKeyDown(DIK_D))
     {
         MoveLeftRight += Speed;
     }
 
-     CamYaw += Input::GetMousePosition().X * 0.0001f;
-     CamPitch += Input::GetMousePosition().Y * 0.0001f;
-    
-    CamRotationMatrix = XMMatrixRotationRollPitchYaw(CamPitch, CamYaw, 0.0f);
+    Yaw += Input::GetMousePosition().X * 0.0001f;
+    Pitch += Input::GetMousePosition().Y * 0.0001f;
+
+    const XMMATRIX CamRotationMatrix = XMMatrixRotationRollPitchYaw(Pitch, Yaw, 0.0f);
     Target = XMVector3TransformCoord(DefaultForward, CamRotationMatrix);
     Target = XMVector3Normalize(Target);
-    
-    const XMMATRIX RotateYTempMatrix = XMMatrixRotationY(CamYaw);
-    CamRight = XMVector3TransformCoord(DefaultRight, RotateYTempMatrix);
+
+    const XMMATRIX RotateYTempMatrix = XMMatrixRotationY(Yaw);
+    const XMVECTOR CamRight = XMVector3TransformCoord(DefaultRight, RotateYTempMatrix);
     Up = XMVector3TransformCoord(Up, RotateYTempMatrix);
-    CamForward = XMVector3Transform(DefaultForward, RotateYTempMatrix);
-    
+
+    const XMVECTOR CamForward = XMVector3Transform(DefaultForward, RotateYTempMatrix);
     Position += (MoveLeftRight * CamRight);
     Position += (MoveBackForward * CamForward);
-    
+
     MoveLeftRight = 0.0f;
     MoveBackForward = 0.0f;
     Target = (Position + Target);
-    
+
     View = XMMatrixLookAtLH(Position, Target, Up);
 }
 
@@ -88,12 +91,9 @@ bool DX11Renderer::Initialize(Window* MainWindow)
     CreateVertexBuffer();
     CreateIndexBuffer();
     CreateConstantBuffers();
-
-    DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
+    
     InitializeShaders();
     CreateInputLayout();
-
     ResizeViewport(static_cast<float>(Width), static_cast<float>(Height));
     return true;
 }
@@ -139,7 +139,7 @@ void DX11Renderer::UpdatePerFrameConstantBuffer()
 void DX11Renderer::CreateTexture(void* InTextureData, uint32 InWidth, uint32 InHeight, void** OutData)
 {
     const D3D11_TEXTURE2D_DESC TextureDesc =
-{
+    {   
         .Width = InWidth,
         .Height = InHeight,
         .MipLevels = 1,
@@ -147,9 +147,8 @@ void DX11Renderer::CreateTexture(void* InTextureData, uint32 InWidth, uint32 InH
         .Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
         .SampleDesc = {
             .Count = 1,
-            .Quality = 0,
         },
-        .Usage = D3D11_USAGE_IMMUTABLE,
+        .Usage = D3D11_USAGE_DEFAULT,
         .BindFlags = D3D11_BIND_SHADER_RESOURCE,
         .CPUAccessFlags = 0,
         .MiscFlags = 0
@@ -416,6 +415,7 @@ void DX11Renderer::CreateDeviceAndSwapChain(Window* MainWindow)
 
     constexpr uint32 Flags = D3D11_CREATE_DEVICE_DEBUG;
     HR_CHECK(D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, Flags, nullptr, NULL, D3D11_SDK_VERSION, &SwapChainDesc, &SwapChain, &Device, nullptr, &DeviceContext));
+    DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 
 void DX11Renderer::CreateRenderTargetView()

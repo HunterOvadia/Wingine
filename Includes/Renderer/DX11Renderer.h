@@ -23,17 +23,11 @@ public:
     DirectX::XMVECTOR Position;
     DirectX::XMVECTOR Target;
     DirectX::XMVECTOR Up;
-
-
-    DirectX::XMVECTOR CamForward = DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-    DirectX::XMVECTOR CamRight = DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
-
-    DirectX::XMMATRIX CamRotationMatrix;
     
     float MoveLeftRight = 0.0f;
     float MoveBackForward = 0.0;
-    float CamYaw = 0.0f;
-    float CamPitch = 0.0f;
+    float Yaw = 0.0f;
+    float Pitch = 0.0f;
 
 public:
     inline static DirectX::XMVECTOR DefaultForward = DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);

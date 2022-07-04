@@ -38,15 +38,12 @@ bool Application::Initialize(const WindowSettings& InitialSettings)
 {
     MainWindow = MakeWindow(InitialSettings);
     Input::Initialize(MainWindow->GetInstance(), MainWindow->GetHandle());
-    
+
     Renderer = new DX11Renderer();
     ShaderManager::Initialize(Renderer);
     TextureManager::Initialize(Renderer);
-    
     if(Renderer->Initialize(MainWindow))
     {
-
-        
         MainWindow->Show();
         return true;
     }
