@@ -36,3 +36,7 @@ void Logger::WriteToConsole(const char* Message, LogLevel Level)
     const LPDWORD NumberWritten = nullptr;
     WriteConsoleA(ConsoleHandle, Message, Length, NumberWritten, nullptr);
 }
+
+void Logger::WriteToFile(const char* Message)
+{
+}

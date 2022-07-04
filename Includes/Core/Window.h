@@ -22,6 +22,7 @@ public:
 	
 	WindowSettings& GetSettings() { return Settings; }
 	HWND& GetHandle() { return Handle; }
+	HINSTANCE& GetInstance() { return Instance; }
 	
 private:
 	void ComputeWindowTransform(const Vector2<uint16>& InPosition, const Vector2<uint16>& InSize, Vector2<uint16>& OutPosition, Vector2<uint16>& OutSize) const;

@@ -143,7 +143,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>
       </AdditionalLibraryDirectories>
-      <AdditionalDependencies>D3D11.lib;D3DCompiler.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>dxguid.lib;dinput8.lib;D3D11.lib;D3DCompiler.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <FxCompile>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -181,6 +181,7 @@
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Source\Core\Application.cpp" />
     <ClCompile Include="Source\Core\FileIO.cpp" />
+    <ClCompile Include="Source\Core\Input.cpp" />
     <ClCompile Include="Source\Core\Logger.cpp" />
     <ClCompile Include="Source\Core\Memory.cpp" />
     <ClCompile Include="Source\Core\ShaderManager.cpp" />
@@ -341,6 +342,7 @@
     <ClInclude Include="Includes\Containers\Vector.h" />
     <ClInclude Include="Includes\Core\Application.h" />
     <ClInclude Include="Includes\Core\FileIO.h" />
+    <ClInclude Include="Includes\Core\Input.h" />
     <ClInclude Include="Includes\Core\Logger.h" />
     <ClInclude Include="Includes\Core\Memory.h" />
     <ClInclude Include="Includes\Core\ShaderManager.h" />
@@ -348,6 +350,7 @@
     <ClInclude Include="Includes\Core\Window.h" />
     <ClInclude Include="Includes\Defines.h" />
     <ClInclude Include="Includes\Renderer\DX11Renderer.h" />
+    <ClInclude Include="Includes\Renderer\Light.h" />
     <ClInclude Include="Includes\Renderer\Renderer.h" />
     <ClInclude Include="Includes\Renderer\Shader.h" />
     <ClInclude Include="Includes\Renderer\Texture.h" />

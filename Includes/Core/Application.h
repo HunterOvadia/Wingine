@@ -29,7 +29,6 @@ public:
 public:
     bool Initialize(const WindowSettings& InitialSettings);
     void Shutdown();
-    
     void Start();
     void Stop();
     void Run();
@@ -40,12 +39,9 @@ private:
     void Update(float64 DeltaTime);
     void Render();
 
-
-    
 private:
     bool IsRunning;
     Window* MainWindow;
     IRenderer* Renderer;
-
     FrameTimer Timer;
 };

@@ -1,8 +1,5 @@
 #include "Core/Window.h"
-
-#include "Core/Application.h"
 #include "Core/Logger.h"
-#include "Renderer/Renderer.h"
 
 static LRESULT CALLBACK ProcessMessages(HWND Handle, uint32 Message, WPARAM WParam, LPARAM LParam)
 {

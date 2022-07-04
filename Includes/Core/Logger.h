@@ -22,6 +22,7 @@ public:
 
 private:
     static void WriteToConsole(const char* Message, LogLevel Level);
+    static void WriteToFile(const char* Message);
 };
 
 #define WIN_LOG(level, message, ...) Logger::Log(LogLevel::level, message, ##__VA_ARGS__)

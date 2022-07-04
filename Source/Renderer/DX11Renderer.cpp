@@ -1,19 +1,56 @@
 ﻿#include "Renderer/DX11Renderer.h"
 #include <d3d11.h>
 #include "Core/FileIO.h"
+#include "Core/Input.h"
 #include "Core/Logger.h"
 #include "Core/ShaderManager.h"
 #include "Core/TextureManager.h"
 #include "Renderer/Shader.h"
 #include "Renderer/Vertex.h"
 
-void CameraData::Initialize(const uint32 Width, const uint32 Height)
+
+void CameraData::Update(float64 Time)
 {
-    Position = DirectX::XMVectorSet(0.0f, 3.0f, -8.0f, 0.0f);
-    Target = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-    Up = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-    View = DirectX::XMMatrixLookAtLH(Position, Target, Up);
-    Projection = DirectX::XMMatrixPerspectiveFovLH(0.4f * 3.14f, static_cast<float>(Width)/static_cast<float>(Height), 1.0f, 1000.0f);
+    using namespace DirectX;
+    
+    const float32 Speed = 15.0f * static_cast<float32>(Time);
+    if(Input::IsKeyDown(DIK_W))
+    {
+        MoveBackForward += Speed;
+    }
+    if(Input::IsKeyDown(DIK_A))
+    {
+        MoveLeftRight -= Speed;
+    }
+    if(Input::IsKeyDown(DIK_S))
+    {
+        MoveBackForward -= Speed;
+    }
+    if(Input::IsKeyDown(DIK_D))
+    {
+        MoveLeftRight += Speed;
+    }
+
+     CamYaw += Input::GetMousePosition().X * 0.0001f;
+     CamPitch += Input::GetMousePosition().Y * 0.0001f;
+    
+    CamRotationMatrix = XMMatrixRotationRollPitchYaw(CamPitch, CamYaw, 0.0f);
+    Target = XMVector3TransformCoord(DefaultForward, CamRotationMatrix);
+    Target = XMVector3Normalize(Target);
+    
+    const XMMATRIX RotateYTempMatrix = XMMatrixRotationY(CamYaw);
+    CamRight = XMVector3TransformCoord(DefaultRight, RotateYTempMatrix);
+    Up = XMVector3TransformCoord(Up, RotateYTempMatrix);
+    CamForward = XMVector3Transform(DefaultForward, RotateYTempMatrix);
+    
+    Position += (MoveLeftRight * CamRight);
+    Position += (MoveBackForward * CamForward);
+    
+    MoveLeftRight = 0.0f;
+    MoveBackForward = 0.0f;
+    Target = (Position + Target);
+    
+    View = XMMatrixLookAtLH(Position, Target, Up);
 }
 
 DX11Renderer::DX11Renderer()
@@ -23,19 +60,20 @@ DX11Renderer::DX11Renderer()
       , RenderTargetView(nullptr)
       , DepthStencilView(nullptr)
       , DepthStencilBuffer(nullptr)
-      , ConstantBuffer(nullptr)
-      , WireFrameRasterizerState(nullptr)
+      , BlendState(nullptr)
+      , SamplerState(nullptr)
+      , PerObjectConstantBuffer(nullptr)
+      , PerFrameConstantBuffer(nullptr)
       , SquareIndexBuffer(nullptr)
       , SquareVertexBuffer(nullptr)
       , VertexInputLayout(nullptr)
       , PixelShader(nullptr)
-      , VertexShader(nullptr)
-      , CubeTexture(nullptr), SampleState(nullptr), Width(0)
+      , VertexShader(nullptr), CubeTexture(nullptr), Width(0)
       , Height(0)
+      , ConstantBufferPerObject(), ConstantBufferPerFrame()
+      , WorldLight()
       , Camera()
-      , ConstantBufferData()
-      , Cube1World()
-      , Cube2World()
+      , GroundWorld()
 {
 }
 
@@ -46,21 +84,25 @@ bool DX11Renderer::Initialize(Window* MainWindow)
     CreateDepthStencilView();
     CreateSamplerState();
     CreateBlendState();
-    CreateRasterizerStates();
-    
+
+    CreateVertexBuffer();
+    CreateIndexBuffer();
+    CreateConstantBuffers();
+
+    DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    InitializeShaders();
+    CreateInputLayout();
+
     ResizeViewport(static_cast<float>(Width), static_cast<float>(Height));
-    DeviceContext->OMSetRenderTargets(1, &RenderTargetView, DepthStencilView);
     return true;
 }
 
 void DX11Renderer::Shutdown()
 {
-    DX_SAFE_RELEASE(NoCullRasterizerState);
-    DX_SAFE_RELEASE(CWRasterizerState);
-    DX_SAFE_RELEASE(CCWRasterizerState);
     DX_SAFE_RELEASE(BlendState);
-    DX_SAFE_RELEASE(WireFrameRasterizerState);
-    DX_SAFE_RELEASE(ConstantBuffer);
+    DX_SAFE_RELEASE(PerObjectConstantBuffer);
+    DX_SAFE_RELEASE(PerFrameConstantBuffer);
     DX_SAFE_RELEASE(VertexInputLayout);
     DX_SAFE_RELEASE(SquareIndexBuffer);
     DX_SAFE_RELEASE(SquareVertexBuffer);
@@ -74,15 +116,24 @@ void DX11Renderer::Shutdown()
 
 void DX11Renderer::PreRender()
 {
+    DeviceContext->OMSetRenderTargets(1, &RenderTargetView, DepthStencilView);
     ClearViews();
+    UpdatePerFrameConstantBuffer();
     SetDefaultBlendState();
 }
 
-void DX11Renderer::SetConstantBufferData(const DirectX::XMMATRIX& InWVP)
+void DX11Renderer::UpdatePerObjectConstantBuffer(const DirectX::XMMATRIX& InWorld)
 {
-    ConstantBufferData.UpdateData(InWVP, Camera);
-    DeviceContext->UpdateSubresource(ConstantBuffer, 0, nullptr, &ConstantBufferData, 0, 0);
-    DeviceContext->VSSetConstantBuffers(0, 1, &ConstantBuffer);
+    ConstantBufferPerObject.UpdateData(InWorld, Camera);
+    DeviceContext->UpdateSubresource(PerObjectConstantBuffer, 0, nullptr, &ConstantBufferPerObject, 0, 0);
+    DeviceContext->VSSetConstantBuffers(0, 1, &PerObjectConstantBuffer);
+}
+
+void DX11Renderer::UpdatePerFrameConstantBuffer()
+{
+    ConstantBufferPerFrame.UpdateData(WorldLight);
+    DeviceContext->UpdateSubresource(PerFrameConstantBuffer, 0, nullptr, &ConstantBufferPerFrame, 0, 0);
+    DeviceContext->PSSetConstantBuffers(0, 1, &PerFrameConstantBuffer);
 }
 
 void DX11Renderer::CreateTexture(void* InTextureData, uint32 InWidth, uint32 InHeight, void** OutData)
@@ -170,64 +221,68 @@ void DX11Renderer::SetTexture(ID3D11ShaderResourceView* ResourceView, ID3D11Samp
     DeviceContext->PSSetSamplers(0, 1, &SamplerState);
 }
 
+void DX11Renderer::SetIndexBuffer(ID3D11Buffer* InBuffer)
+{
+    DeviceContext->IASetIndexBuffer(InBuffer, DXGI_FORMAT_R32_UINT, 0);
+}
+
+void DX11Renderer::SetVertexBuffer(ID3D11Buffer* InBuffer)
+{
+    constexpr UINT Stride = sizeof(Vertex);
+    constexpr UINT Offset = 0;
+    DeviceContext->IASetVertexBuffers(0, 1, &InBuffer, &Stride, &Offset);
+}
+
 bool DX11Renderer::InitializeScene()
 {
-    if(!InitializeTextures() || !InitializeShaders())
-    {
-        return false;
-    }
-
-    SetShader(VertexShader);
-    SetShader(PixelShader);
+    InitializeTextures();
     
-    CreateVertexBuffer();
-    CreateIndexBuffer();
-    CreateConstantBuffer();
-    CreateInputLayout();
-
-    // TODO(HO): Move this :)
-    Camera.Initialize(Width, Height);
-
+    // TODO(HO): Move this
+    Camera.Position = DirectX::XMVectorSet(0.0f, 5.0f, -8.0f, 0.0f);
+    Camera.Target = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+    Camera.Up = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+    Camera.View = DirectX::XMMatrixLookAtLH(Camera.Position, Camera.Target, Camera.Up);
+    Camera.Projection = DirectX::XMMatrixPerspectiveFovLH(0.4f * 3.14f, static_cast<float>(Width)/static_cast<float>(Height), 1.0f, 1000.0f);
     
-    DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-    // TODO(HO): States?
-    //DeviceContext->RSSetState(WireFrameRasterizerState);
+    WorldLight.Position = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+    WorldLight.Range = 100.0f;
+    WorldLight.Attenuation = DirectX::XMFLOAT3(0.0f, 0.2f, 0.02f);
+    WorldLight.Direction = DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f);
+    WorldLight.Ambient = DirectX::XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
+    WorldLight.Diffuse = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     return true;
 }
 
 void DX11Renderer::UpdateScene(float64 DeltaTime)
 {
-    Rot += 1.0f * DeltaTime;
-    if(Rot > 6.28f)
-    {
-        Rot = 0.0f;
-    }
+    Camera.Update(DeltaTime);
 
-    Cube1World = DirectX::XMMatrixIdentity();
-
-    const DirectX::XMVECTOR RotAxis = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-
-    DirectX::XMMATRIX Rotation = DirectX::XMMatrixRotationAxis(RotAxis, Rot);
-    const DirectX::XMMATRIX Translation = DirectX::XMMatrixTranslation(0.0f, 0.0f, 4.0f);
-    Cube1World = (Translation * Rotation);
-
-    Cube2World = DirectX::XMMatrixIdentity();
-    Rotation = DirectX::XMMatrixRotationAxis(RotAxis, -Rot);
-    const DirectX::XMMATRIX Scale = DirectX::XMMatrixScaling(1.3f, 1.3f, 1.3f);
-    Cube2World = (Rotation * Scale);
+    GroundWorld = DirectX::XMMatrixIdentity();
+    const DirectX::XMMATRIX Scale = DirectX::XMMatrixScaling(500.0f, 10.f, 500.0f);
+    const DirectX::XMMATRIX Translation = DirectX::XMMatrixTranslation(0.0f, 50.0f, 0.0f);
+    GroundWorld = (Scale * Translation);
 }
-
 
 void DX11Renderer::RenderScene()
 {
-    SetConstantBufferData(Cube1World);
-    SetTexture(CubeTexture->GetResource<ID3D11ShaderResourceView>(), SampleState);
-    DeviceContext->DrawIndexed(36, 0, 0);
+    // Set Shader
+    SetShader(VertexShader);
+    SetShader(PixelShader);
 
-    SetConstantBufferData(Cube2World);
-    SetTexture(CubeTexture->GetResource<ID3D11ShaderResourceView>(), SampleState);
-    DeviceContext->DrawIndexed(36, 0, 0);
+    // Set Index Buffer
+    SetIndexBuffer(SquareIndexBuffer);
+
+    // Set Vertex Buffer
+    SetVertexBuffer(SquareVertexBuffer);
+
+    // Set Constant Buffer Per Object
+    UpdatePerObjectConstantBuffer(GroundWorld);
+
+    // Set Texture to Sampler
+    SetTexture(CubeTexture->GetResource<ID3D11ShaderResourceView>(), SamplerState);
+
+    // Draw
+    DeviceContext->DrawIndexed(6, 0, 0);
 }
 
 void DX11Renderer::CleanupScene()
@@ -243,35 +298,10 @@ void DX11Renderer::CreateVertexBuffer()
 {
     const Vertex VertexBuffer[] =
     {
-        Vertex(Vector3(-1.0f, -1.0f, -1.0f), Vector2(0.0f, 1.0f)),
-        Vertex(Vector3(-1.0f,  1.0f, -1.0f), Vector2(0.0f, 0.0f)),
-        Vertex(Vector3( 1.0f,  1.0f, -1.0f), Vector2(1.0f, 0.0f)),
-        Vertex(Vector3( 1.0f, -1.0f, -1.0f), Vector2(1.0f, 1.0f)),
-        
-        Vertex(Vector3(-1.0f, -1.0f, 1.0f), Vector2(1.0f, 1.0f)),
-        Vertex(Vector3( 1.0f, -1.0f, 1.0f), Vector2(0.0f, 1.0f)),
-        Vertex(Vector3( 1.0f,  1.0f, 1.0f), Vector2(0.0f, 0.0f)),
-        Vertex(Vector3(-1.0f,  1.0f, 1.0f), Vector2(1.0f, 0.0f)),
-
-        Vertex(Vector3(-1.0f, 1.0f, -1.0f), Vector2(0.0f, 1.0f)),
-        Vertex(Vector3(-1.0f, 1.0f,  1.0f), Vector2(0.0f, 0.0f)),
-        Vertex(Vector3( 1.0f, 1.0f,  1.0f), Vector2(1.0f, 0.0f)),
-        Vertex(Vector3( 1.0f, 1.0f, -1.0f), Vector2(1.0f, 1.0f)),
-
-        Vertex(Vector3(-1.0f, -1.0f, -1.0f), Vector2(1.0f, 1.0f)),
-        Vertex(Vector3( 1.0f, -1.0f, -1.0f), Vector2(0.0f, 1.0f)),
-        Vertex(Vector3( 1.0f, -1.0f,  1.0f), Vector2(0.0f, 0.0f)),
-        Vertex(Vector3(-1.0f, -1.0f,  1.0f), Vector2(1.0f, 0.0f)),
-
-        Vertex(Vector3(-1.0f, -1.0f,  1.0f), Vector2(0.0f, 1.0f)),
-        Vertex(Vector3(-1.0f,  1.0f,  1.0f), Vector2(0.0f, 0.0f)),
-        Vertex(Vector3(-1.0f,  1.0f, -1.0f), Vector2(1.0f, 0.0f)),
-        Vertex(Vector3(-1.0f, -1.0f, -1.0f), Vector2(1.0f, 1.0f)),
-
-        Vertex(Vector3( 1.0f, -1.0f, -1.0f), Vector2(0.0f, 1.0f)),
-        Vertex(Vector3( 1.0f,  1.0f, -1.0f), Vector2(0.0f, 0.0f)),
-        Vertex(Vector3( 1.0f,  1.0f,  1.0f), Vector2(1.0f, 0.0f)),
-        Vertex(Vector3( 1.0f, -1.0f,  1.0f), Vector2(1.0f, 1.0f)),
+        Vertex(Vector3(-1.0f, -1.0f, -1.0f), Vector2(1000.0f, 100.0f), Vector3(0.0f, 1.0f, 0.0f)),
+        Vertex(Vector3( 1.0f, -1.0f, -1.0f), Vector2(  0.0f, 100.0f), Vector3(0.0f, 1.0f, 0.0f)),
+        Vertex(Vector3( 1.0f, -1.0f,  1.0f), Vector2(  0.0f,   0.0f), Vector3(0.0f, 1.0f, 0.0f)),
+        Vertex(Vector3(-1.0f, -1.0f,  1.0f), Vector2(100.0f,   0.0f), Vector3(0.0f, 1.0f, 0.0f)),
     };
 
     const D3D11_BUFFER_DESC VertexBufferDesc =
@@ -282,40 +312,16 @@ void DX11Renderer::CreateVertexBuffer()
         .CPUAccessFlags = 0,
         .MiscFlags = 0
     };
+    
     CreateBuffer(&VertexBuffer, &VertexBufferDesc, &SquareVertexBuffer);
-
-    constexpr UINT Stride = sizeof(Vertex);
-    constexpr UINT Offset = 0;
-    DeviceContext->IASetVertexBuffers(0, 1, &SquareVertexBuffer, &Stride, &Offset);
 }
 
 void DX11Renderer::CreateIndexBuffer()
 {
     const DWORD Indices[] =
-{
-        // Front Face
+    {
         0,  1,  2,
         0,  2,  3,
-    
-        // Back Face
-        4,  5,  6,
-        4,  6,  7,
-    
-        // Top Face
-        8,  9, 10,
-        8, 10, 11,
-    
-        // Bottom Face
-        12, 13, 14,
-        12, 14, 15,
-    
-        // Left Face
-        16, 17, 18,
-        16, 18, 19,
-    
-        // Right Face
-        20, 21, 22,
-        20, 22, 23
     };
 
     const D3D11_BUFFER_DESC IndexBufferDesc =
@@ -328,21 +334,30 @@ void DX11Renderer::CreateIndexBuffer()
     };
 
     CreateBuffer(&Indices, &IndexBufferDesc, &SquareIndexBuffer);
-    DeviceContext->IASetIndexBuffer(SquareIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 }
 
 
-void DX11Renderer::CreateConstantBuffer()
+void DX11Renderer::CreateConstantBuffers()
 {
-    const D3D11_BUFFER_DESC ConstantBufferDesc =
+    const D3D11_BUFFER_DESC PerObjectBufferDesc =
     {
-        .ByteWidth = sizeof(ConstantBufferPerObjectData),
+        .ByteWidth = sizeof(ConstantBufferPerObject),
         .Usage = D3D11_USAGE_DEFAULT,
         .BindFlags = D3D11_BIND_CONSTANT_BUFFER,
         .CPUAccessFlags = 0,
         .MiscFlags = 0
     };
-    CreateBuffer(nullptr, &ConstantBufferDesc, &ConstantBuffer);
+    CreateBuffer(nullptr, &PerObjectBufferDesc, &PerObjectConstantBuffer);
+
+    const D3D11_BUFFER_DESC PerFrameBufferDesc =
+{
+        .ByteWidth = sizeof(ConstantBufferPerFrame),
+        .Usage = D3D11_USAGE_DEFAULT,
+        .BindFlags = D3D11_BIND_CONSTANT_BUFFER,
+        .CPUAccessFlags = 0,
+        .MiscFlags = 0
+    };
+    CreateBuffer(nullptr, &PerFrameBufferDesc, &PerFrameConstantBuffer);
 }
 
 void DX11Renderer::CreateInputLayout()
@@ -393,14 +408,13 @@ void DX11Renderer::CreateDeviceAndSwapChain(Window* MainWindow)
             .Count = 1,
          },
         .BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT,
-        .BufferCount = 1,
+        .BufferCount = 2,
         .OutputWindow = MainWindow->GetHandle(),
         .Windowed = true,
-        .SwapEffect = DXGI_SWAP_EFFECT_DISCARD,
+        .SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD,
     };
 
-    // TODO(HO): Debug Flags
-    const uint32 Flags = 0;
+    constexpr uint32 Flags = D3D11_CREATE_DEVICE_DEBUG;
     HR_CHECK(D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, Flags, nullptr, NULL, D3D11_SDK_VERSION, &SwapChainDesc, &SwapChain, &Device, nullptr, &DeviceContext));
 }
 
@@ -444,7 +458,7 @@ bool DX11Renderer::InitializeShaders()
 
 bool DX11Renderer::InitializeTextures()
 {
-    CubeTexture = TextureManager::Create("TestTexture.png");
+    CubeTexture = TextureManager::Create("Grass.jpg");
     return true;
 }
 
@@ -460,7 +474,7 @@ void DX11Renderer::CreateSamplerState()
         .MaxLOD = D3D11_FLOAT32_MAX
     };
     
-    HR_CHECK(Device->CreateSamplerState(&SamplerDesc, &SampleState));
+    HR_CHECK(Device->CreateSamplerState(&SamplerDesc, &SamplerState));
 }
 
 
@@ -488,35 +502,6 @@ void DX11Renderer::ResizeViewport(float Width, float Height)
         DeviceContext->RSSetViewports(1, &Viewport);
     }
 }
-
-void DX11Renderer::CreateRasterizerStates()
-{
-    const D3D11_RASTERIZER_DESC WireframeRasterizerDesc =
-    {
-        .FillMode = D3D11_FILL_WIREFRAME,
-        .CullMode = D3D11_CULL_NONE
-    };
-    HR_CHECK(Device->CreateRasterizerState(&WireframeRasterizerDesc, &WireFrameRasterizerState));
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    D3D11_RASTERIZER_DESC SpinningRasterizerDesc =
-    {
-        .FillMode = D3D11_FILL_SOLID,
-        .CullMode = D3D11_CULL_BACK,
-        .FrontCounterClockwise = true
-    };
-    HR_CHECK(Device->CreateRasterizerState(&SpinningRasterizerDesc, &CCWRasterizerState));
-    SpinningRasterizerDesc.FrontCounterClockwise = false;
-    HR_CHECK(Device->CreateRasterizerState(&SpinningRasterizerDesc, &CWRasterizerState));
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    const D3D11_RASTERIZER_DESC NoCullRasterizerDesc =
-    {
-        .FillMode = D3D11_FILL_SOLID,
-        .CullMode = D3D11_CULL_NONE
-    };
-    HR_CHECK(Device->CreateRasterizerState(&NoCullRasterizerDesc, &NoCullRasterizerState));
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-}
-
 
 void DX11Renderer::CreateBlendState()
 {
@@ -550,7 +535,7 @@ void DX11Renderer::SetDefaultBlendState()
 
 void DX11Renderer::ClearViews()
 {
-    constexpr FLOAT Colors[4] = { 0.0f, 0.0, 0.0f, 1.0f };
-    DeviceContext->ClearRenderTargetView(RenderTargetView, Colors);
+    constexpr FLOAT BackgroundColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
+    DeviceContext->ClearRenderTargetView(RenderTargetView, BackgroundColor);
     DeviceContext->ClearDepthStencilView(DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 }

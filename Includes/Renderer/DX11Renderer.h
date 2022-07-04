@@ -2,6 +2,7 @@
 #include <d3d11.h>
 #include <dxgi.h>
 #include <DirectXMath.h>
+#include "Light.h"
 #include "Texture.h"
 #include "Core/Application.h"
 #include "Renderer.h"
@@ -11,24 +12,52 @@
 
 class Shader;
 
-
 struct CameraData
 {
+public:
+    void Update(float64 Time);
+
+public:
     DirectX::XMMATRIX View;
     DirectX::XMMATRIX Projection;
     DirectX::XMVECTOR Position;
     DirectX::XMVECTOR Target;
     DirectX::XMVECTOR Up;
 
-    void Initialize(const uint32 Width, const uint32 Height);
+
+    DirectX::XMVECTOR CamForward = DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+    DirectX::XMVECTOR CamRight = DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+
+    DirectX::XMMATRIX CamRotationMatrix;
+    
+    float MoveLeftRight = 0.0f;
+    float MoveBackForward = 0.0;
+    float CamYaw = 0.0f;
+    float CamPitch = 0.0f;
+
+public:
+    inline static DirectX::XMVECTOR DefaultForward = DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+    inline static DirectX::XMVECTOR DefaultRight = DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
 };
 
-struct ConstantBufferPerObjectData
+struct CBPerObject
 {
     DirectX::XMMATRIX WVP;
+    DirectX::XMMATRIX World;
     void UpdateData(const DirectX::XMMATRIX& InWorld, const CameraData& InCamera)
     {
-        WVP = XMMatrixTranspose(InWorld * InCamera.View * InCamera.Projection);
+        const DirectX::XMMATRIX PreTransposeWVP = InWorld * InCamera.View * InCamera.Projection;
+        WVP = XMMatrixTranspose(PreTransposeWVP);
+        World = XMMatrixTranspose(InWorld);
+    }
+};
+
+struct CBPerFrame
+{
+    Light WorldLight;
+    void UpdateData(const Light& InLight)
+    {
+        WorldLight = InLight;
     }
 };
 
@@ -62,22 +91,25 @@ public:
     
 private:
     void SetShader(const Shader* InShader) const;
-    void SetConstantBufferData(const DirectX::XMMATRIX& InWVP);
+    void UpdatePerObjectConstantBuffer(const DirectX::XMMATRIX& InWorld);
+    void UpdatePerFrameConstantBuffer();
     void CreateDeviceAndSwapChain(Window* MainWindow);
     void CreateRenderTargetView();
     void CreateDepthStencilView();
     void CreateBuffer(const void* InBufferMemory, const D3D11_BUFFER_DESC* InBufferDesc, ID3D11Buffer** InBuffer) const;
     void CreateSamplerState();
-    void CreateRasterizerStates();
     void CreateBlendState();
     void SetDefaultBlendState();
     
     void CreateIndexBuffer();
     void CreateVertexBuffer();
-    void CreateConstantBuffer();
+    void CreateConstantBuffers();
     void CreateInputLayout();
     void ClearViews();
     void SetTexture(ID3D11ShaderResourceView* ResourceView, ID3D11SamplerState* SamplerState);
+
+    void SetIndexBuffer(ID3D11Buffer* InBuffer);
+    void SetVertexBuffer(ID3D11Buffer* InBuffer);
     
 private:
     bool InitializeShaders();
@@ -90,15 +122,12 @@ private:
     ID3D11RenderTargetView* RenderTargetView;
     ID3D11DepthStencilView* DepthStencilView;
     ID3D11Texture2D* DepthStencilBuffer;
-    ID3D11Buffer* ConstantBuffer;
-    
-    ID3D11RasterizerState* WireFrameRasterizerState;
-    ID3D11RasterizerState* CCWRasterizerState;
-    ID3D11RasterizerState* CWRasterizerState;
-    ID3D11RasterizerState* NoCullRasterizerState;
-    
     ID3D11BlendState* BlendState;
+    ID3D11SamplerState* SamplerState;
 
+    ID3D11Buffer* PerObjectConstantBuffer;
+    ID3D11Buffer* PerFrameConstantBuffer;
+    
     ID3D11Buffer* SquareIndexBuffer;
     ID3D11Buffer* SquareVertexBuffer;
     ID3D11InputLayout* VertexInputLayout;
@@ -106,18 +135,17 @@ private:
     Shader* PixelShader;
     Shader* VertexShader;
     Texture* CubeTexture;
-
-    ID3D11SamplerState* SampleState;
     
     uint32 Width;
     uint32 Height;
     
+    CBPerObject ConstantBufferPerObject;
+    CBPerFrame ConstantBufferPerFrame;
+
     // TOOD(HO): Not the right place for this
+    Light WorldLight;
     CameraData Camera;
-    ConstantBufferPerObjectData ConstantBufferData;
-    DirectX::XMMATRIX Cube1World;
-    DirectX::XMMATRIX Cube2World;
-    float32 Rot = 0.01f;
+    DirectX::XMMATRIX GroundWorld;
 
 };
 

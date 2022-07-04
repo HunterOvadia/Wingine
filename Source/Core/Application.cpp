@@ -1,4 +1,6 @@
 ﻿#include "Core/Application.h"
+
+#include "Core/Input.h"
 #include "Core/Logger.h"
 #include "Core/ShaderManager.h"
 #include "Renderer/DX11Renderer.h"
@@ -35,12 +37,15 @@ Window* Application::MakeWindow(const WindowSettings& InitialSettings)
 bool Application::Initialize(const WindowSettings& InitialSettings)
 {
     MainWindow = MakeWindow(InitialSettings);
+    Input::Initialize(MainWindow->GetInstance(), MainWindow->GetHandle());
     
     Renderer = new DX11Renderer();
+    ShaderManager::Initialize(Renderer);
+    TextureManager::Initialize(Renderer);
+    
     if(Renderer->Initialize(MainWindow))
     {
-        ShaderManager::Initialize(Renderer);
-        TextureManager::Initialize(Renderer);
+
         
         MainWindow->Show();
         return true;
@@ -86,6 +91,7 @@ void Application::Run()
     {
         if(PumpMessages())
         {
+            Input::PollInput();
             Update(Timer.Update());
             Render();
         }
@@ -137,6 +143,7 @@ float64 FrameTimer::Update()
     }
 
     FrameTime = UpdateFrameTime();
+    //WIN_LOG(Info, "FPS: %i | FrameTime: %f", FPS, FrameTime);
     return FrameTime;
 }
 
